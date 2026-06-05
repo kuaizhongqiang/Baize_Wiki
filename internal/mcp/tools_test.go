@@ -262,12 +262,13 @@ func TestRegisterAllTools(t *testing.T) {
 	srv := NewServer(newTestTransport(""))
 	RegisterAllTools(srv, wikiDir, mockBuildFn)
 
-	assert.Len(t, srv.tools, 5)
+	assert.Len(t, srv.tools, 6)
 	assert.Contains(t, srv.tools, "wiki_build")
 	assert.Contains(t, srv.tools, "wiki_read")
 	assert.Contains(t, srv.tools, "wiki_list")
 	assert.Contains(t, srv.tools, "wiki_add")
 	assert.Contains(t, srv.tools, "wiki_stats")
+	assert.Contains(t, srv.tools, "wiki_search")
 }
 
 func TestToolWikiAddCreatesParentDir(t *testing.T) {

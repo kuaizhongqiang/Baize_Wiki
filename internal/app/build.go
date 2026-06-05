@@ -10,6 +10,7 @@ import (
 
 	"github.com/kuaizhongqiang/baize-wiki/internal/config"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/generator"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/parser"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/scanner"
@@ -190,6 +191,17 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 	if !quiet {
 		fmt.Fprintf(os.Stderr, "✓ 生成完成: 输出到 %s (%d 页面, %d 目录, Level %d)\n",
 			absOutput, len(pages), dirCount, cfg.Output.Level)
+	}
+
+	// 5. Build full-text index (non-blocking on failure)
+	indexPath := filepath.Join(absOutput, ".baize", "index.bleve")
+	if idx, err := index.NewIndex(indexPath); err == nil {
+		if err := idx.Build(ctx, pages); err != nil {
+			result.Warnings = append(result.Warnings, "index build warning: "+err.Error())
+		}
+		idx.Close()
+	} else {
+		result.Warnings = append(result.Warnings, "index create warning: "+err.Error())
 	}
 
 	result.Success = true
