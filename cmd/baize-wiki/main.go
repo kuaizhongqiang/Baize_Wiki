@@ -37,6 +37,7 @@ func main() {
 		app.NewInitCmd(),
 		app.NewBuildCmd(),
 		app.NewInfoCmd(),
+		app.NewMCPCmd(),
 	)
 
 	rootCmd.Version = fmt.Sprintf("%s (commit %s, built %s)", version, commit, date)
