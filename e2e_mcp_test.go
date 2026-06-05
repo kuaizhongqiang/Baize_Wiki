@@ -7,33 +7,78 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
-	"github.com/kuaizhongqiang/baize-wiki/internal/core/storage"
+	"github.com/kuaizhongqiang/baize-wiki/internal/app"
 	"github.com/kuaizhongqiang/baize-wiki/internal/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// e2eMCPTransport implements mcp.Transport over in-memory pipes for testing.
+// e2eMockBuild is a stub build function for E2E MCP tests.
+var e2eMockBuild mcp.RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (bool, int64, int, int, []string) {
+	return true, 100, 1, 1, nil
+}
+
+// e2eMCPTransport implements mcp.Transport using two separate pipes:
+// one for requests (client→server) and one for responses (server→client).
+// This prevents the server from reading its own response.
 type e2eMCPTransport struct {
-	readPipe  *io.PipeReader
-	writePipe *io.PipeWriter
-	readBuf   bytes.Buffer
+	serverReadPipe  *io.PipeReader // server reads requests from here
+	clientWritePipe *io.PipeWriter // client writes requests here
+	serverWritePipe *io.PipeWriter // server writes responses here
+	clientReadPipe  *io.PipeReader // client reads responses from here
 }
 
 func newE2eMCPTransport() *e2eMCPTransport {
-	r, w := io.Pipe()
-	return &e2eMCPTransport{readPipe: r, writePipe: w}
+	reqR, reqW := io.Pipe()   // request pipe: client→server
+	respR, respW := io.Pipe() // response pipe: server→client
+	return &e2eMCPTransport{
+		serverReadPipe:  reqR,
+		clientWritePipe: reqW,
+		serverWritePipe: respW,
+		clientReadPipe:  respR,
+	}
 }
 
+// Read is called by the server to receive a request from the client.
 func (t *e2eMCPTransport) Read() ([]byte, error) {
+	return readLine(t.serverReadPipe)
+}
+
+// Write is called by the server to send a response to the client.
+func (t *e2eMCPTransport) Write(data []byte) error {
+	_, err := t.serverWritePipe.Write(data)
+	if err == nil {
+		t.serverWritePipe.Write([]byte("\n"))
+	}
+	return err
+}
+
+// ClientWrite sends a request to the server (used by test helpers).
+func (t *e2eMCPTransport) ClientWrite(data []byte) error {
+	_, err := t.clientWritePipe.Write(append(data, '\n'))
+	return err
+}
+
+// ClientRead reads a response from the server (used by test helpers).
+func (t *e2eMCPTransport) ClientRead() ([]byte, error) {
+	return readLine(t.clientReadPipe)
+}
+
+func (t *e2eMCPTransport) Close() error {
+	t.clientWritePipe.Close()
+	t.serverReadPipe.Close()
+	t.serverWritePipe.Close()
+	return t.clientReadPipe.Close()
+}
+
+// readLine reads a single newline-delimited line from a reader.
+func readLine(r io.Reader) ([]byte, error) {
 	var buf bytes.Buffer
 	tmp := make([]byte, 1)
 	for {
-		n, err := t.readPipe.Read(tmp)
+		n, err := r.Read(tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -48,16 +93,6 @@ func (t *e2eMCPTransport) Read() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (t *e2eMCPTransport) Write(data []byte) error {
-	_, err := t.writePipe.Write(data)
-	return err
-}
-
-func (t *e2eMCPTransport) Close() error {
-	t.readPipe.Close()
-	return t.writePipe.Close()
-}
-
 // setupE2EWiki creates a temporary Wiki with test data for E2E MCP testing.
 func setupE2EWiki(t *testing.T) (string, string) {
 	t.Helper()
@@ -67,8 +102,8 @@ func setupE2EWiki(t *testing.T) (string, string) {
 
 	outDir := t.TempDir()
 
-	// Build the wiki
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, true)
+	// Build the wiki at Level 2 so file paths are preserved
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 2, false, true)
 	require.True(t, result.Success)
 
 	return srcDir, outDir
@@ -83,12 +118,12 @@ func sendMCPRequest(t *testing.T, trans *e2eMCPTransport, method string, params 
 	data, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	// Write request with newline delimiter
-	_, err = trans.writePipe.Write(append(data, '\n'))
+	// Write request via the client→server pipe
+	err = trans.ClientWrite(data)
 	require.NoError(t, err)
 
-	// Read response
-	respData, err := trans.Read()
+	// Read response from the server→client pipe
+	respData, err := trans.ClientRead()
 	require.NoError(t, err)
 
 	var resp mcp.Response
@@ -103,7 +138,7 @@ func runMCPServer(t *testing.T, wikiDir string, trans *e2eMCPTransport) context.
 	ctx, cancel := context.WithCancel(context.Background())
 
 	server := mcp.NewServer(trans)
-	mcp.RegisterAllTools(server, wikiDir)
+	mcp.RegisterAllTools(server, wikiDir, e2eMockBuild)
 
 	go func() {
 		server.Run(ctx)
@@ -152,7 +187,7 @@ func TestMCPE2EWikiRead(t *testing.T) {
 	defer cancel()
 
 	_, result, errObj := sendMCPRequest(t, trans, "wiki_read", map[string]string{
-		"path": "test-doc.md",
+		"path": "doc.md",
 	})
 	assert.Nil(t, errObj)
 
@@ -189,7 +224,7 @@ func TestMCPE2EWikiList(t *testing.T) {
 	assert.Nil(t, errObj)
 
 	assert.Contains(t, string(result), "_index.md")
-	assert.Contains(t, string(result), "test-doc.md")
+	assert.Contains(t, string(result), "doc.md")
 }
 
 func TestMCPE2EWikiAdd(t *testing.T) {
@@ -222,7 +257,7 @@ func TestMCPE2EWikiAddExists(t *testing.T) {
 
 	// Try to add a page that already exists (from build)
 	_, result, errObj := sendMCPRequest(t, trans, "wiki_add", map[string]string{
-		"path":    "test-doc.md",
+		"path":    "doc.md",
 		"content": "# Overwrite me",
 	})
 	assert.Nil(t, errObj)
@@ -273,37 +308,18 @@ func TestMCPE2EUnknownMethod(t *testing.T) {
 }
 
 func TestMCPE2EWikiBuild(t *testing.T) {
-	srcDir := t.TempDir()
-	outDir := t.TempDir()
-
-	// Create a wiki without building first
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "doc.md"), []byte("# Doc"), 0644))
-
-	_, wikiDir := setupE2EWiki(t) // just need a valid wiki dir for the server
-	_ = outDir
-	_ = srcDir
-
+	_, wikiDir := setupE2EWiki(t)
 	trans := newE2eMCPTransport()
 	defer trans.Close()
 
-	// Create a fresh wiki dir with meta.json so the server starts
-	freshWikiDir := t.TempDir()
-	store := storage.NewStore()
-	cfg := model.DefaultConfig()
-	wiki := model.NewWiki("E2E Wiki", srcDir, freshWikiDir, cfg)
-	store.WriteMeta(freshWikiDir, wiki)
-
-	cancel := runMCPServer(t, freshWikiDir, trans)
+	cancel := runMCPServer(t, wikiDir, trans)
 	defer cancel()
 
-	// Read the actual file that we set up
-	require.NoError(t, os.WriteFile(filepath.Join(freshWikiDir, "test.md"), []byte("# Test"), 0644))
-
 	_, result, errObj := sendMCPRequest(t, trans, "wiki_read", map[string]string{
-		"path": "test.md",
+		"path": "doc.md",
 	})
 	assert.Nil(t, errObj)
-	assert.Contains(t, string(result), "# Test")
+	assert.Contains(t, string(result), "Hello world")
 }
 
 func TestMCPE2EMultipleRequests(t *testing.T) {
@@ -331,36 +347,35 @@ func TestMCPE2EMultipleRequests(t *testing.T) {
 }
 
 func TestMCPE2EIO(t *testing.T) {
-	// Test the raw stdio-like transport behavior
-	r, w := io.Pipe()
-	var stdout bytes.Buffer
-	trans := mcp.NewStdioTransportWith(r, &stdout)
+	// Test the raw stdio-like transport behavior using two pipes
+	reqR, reqW := io.Pipe()   // client writes requests, server reads
+	respR, respW := io.Pipe() // server writes responses, client reads
+	trans := mcp.NewStdioTransportWith(reqR, respW)
 
 	_, wikiDir := setupE2EWiki(t)
 	server := mcp.NewServer(trans)
-	mcp.RegisterAllTools(server, wikiDir)
+	mcp.RegisterAllTools(server, wikiDir, e2eMockBuild)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		server.Run(ctx)
 	}()
 
-	// Send a ping request
-	go func() {
-		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"method":"ping"}` + "\n"))
-	}()
+	// Send a ping request via the request pipe
+	_, err := reqW.Write([]byte(`{"jsonrpc":"2.0","id":1,"method":"ping"}` + "\n"))
+	require.NoError(t, err)
 
-	// Read response from stdout buffer
+	// Read response from the response pipe
+	respData, err := readLine(respR)
+	require.NoError(t, err)
+
 	var resp mcp.Response
-	for i := 0; i < 100; i++ {
-		if stdout.Len() > 0 {
-			json.Unmarshal(stdout.Bytes(), &resp)
-			break
-		}
-	}
+	err = json.Unmarshal(respData, &resp)
+	require.NoError(t, err)
 
 	cancel()
-	w.Close()
+	reqW.Close()
+	respW.Close()
 
 	require.NotNil(t, resp.Result)
 	assert.Contains(t, string(resp.Result), "pong")
@@ -375,7 +390,7 @@ func TestMCPE2EWikiAddWithTags(t *testing.T) {
 	defer cancel()
 
 	// Add a page with tags
-	_, result, errObj := sendMCPRequest(t, trans, "wiki_add", map[string]any{
+	_, _, errObj := sendMCPRequest(t, trans, "wiki_add", map[string]any{
 		"path":    "tagged.md",
 		"content": "# Tagged\n\nContent",
 		"tags":    []string{"go", "testing"},
@@ -397,11 +412,6 @@ func TestMCPE2EBadJSON(t *testing.T) {
 	_ = runMCPServer(t, wikiDir, trans)
 
 	// Send invalid JSON
-	_, err := trans.writePipe.Write([]byte("not json\n"))
+	err := trans.ClientWrite([]byte("not json"))
 	require.NoError(t, err)
-}
-
-func TestExportAppRunBuild(t *testing.T) {
-	// Ensure app is importable by importing the package
-	_ = app.RunBuild
 }

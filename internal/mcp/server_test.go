@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -167,12 +166,18 @@ func TestGracefulShutdown(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
+	// Close the pipe writer when context cancels, so Read() unblocks
+	go func() {
+		<-ctx.Done()
+		w.Close()
+	}()
+
 	// Run the server; it should exit when context is cancelled
+	start := time.Now()
 	err := srv.Run(ctx)
 
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Less(t, time.Since(start), 2*time.Second, "shutdown should be quick")
-	w.Close()
 }
 
 func TestNotificationNoID(t *testing.T) {

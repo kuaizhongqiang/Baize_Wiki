@@ -14,25 +14,9 @@ import (
 )
 
 // RunBuildFunc is the signature of the Wiki build function provided by the app layer.
+// Returns (success, durationMs, pages, directories, errors).
 // It must be injected to avoid an import cycle (mcp → app → mcp).
-type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) BuildResult
-
-// BuildResult mirrors app.BuildResult, defined here to break the import cycle.
-type BuildResult struct {
-	Success    bool          `json:"success"`
-	DurationMs int64         `json:"duration_ms"`
-	Summary    BuildSummary  `json:"summary"`
-	Errors     []string      `json:"errors"`
-	Warnings   []string      `json:"warnings"`
-}
-
-// BuildSummary mirrors app.Summary.
-type BuildSummary struct {
-	TotalFiles  int `json:"total_files"`
-	Parsed      int `json:"parsed"`
-	Pages       int `json:"pages"`
-	Directories int `json:"directories"`
-}
+type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (success bool, durationMs int64, pages int, directories int, errs []string)
 
 // toolWikiBuild handles wiki_build: builds or updates a Wiki from source.
 func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
@@ -49,21 +33,21 @@ func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 			}
 		}
 
-		result := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
-		if !result.Success {
+		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
+		if !success {
 			errMsg := "build failed"
-			if len(result.Errors) > 0 {
-				errMsg = result.Errors[0]
+			if len(errs) > 0 {
+				errMsg = errs[0]
 			}
 			return NewMCPErrorResult(fmt.Sprintf(`{"code":"ERR_BUILD_FAILED","message":"%s"}`, errMsg)), nil
 		}
 
 		data, _ := json.Marshal(map[string]any{
-			"success":    true,
-			"duration_ms": result.DurationMs,
+			"success":     true,
+			"duration_ms": durationMs,
 			"summary": map[string]int{
-				"pages":       result.Summary.Pages,
-				"directories": result.Summary.Directories,
+				"pages":       pages,
+				"directories": dirs,
 			},
 		})
 		return NewMCPToolResult(string(data)), nil
@@ -381,7 +365,7 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 			Properties: map[string]PropertySchema{
 				"path":      {Type: "string", Description: "Page path relative to Wiki root (e.g. \"guide/debugging.md\")"},
 				"content":   {Type: "string", Description: "Markdown content of the page"},
-				"tags":      {Type: "array", Description: "List of tags", Items: &struct{ Type string }{Type: "string"}},
+				"tags":      {Type: "array", Description: "List of tags", Items: &ItemsSchema{Type: "string"}},
 				"overwrite": {Type: "boolean", Description: "Overwrite existing page (default false)", Default: false},
 			},
 			Required: []string{"path", "content"},

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -56,7 +57,16 @@ func (s *Server) Run(ctx context.Context) error {
 
 		msg, err := s.transport.Read()
 		if err != nil {
+			// If the context was cancelled while blocked on Read, prefer the context error
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			return fmt.Errorf("transport read: %w", err)
+		}
+
+		// Skip empty lines
+		if len(bytes.TrimSpace(msg)) == 0 {
+			continue
 		}
 
 		resp := s.handleMessage(ctx, msg)
@@ -76,6 +86,7 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 // handleMessage parses a raw JSON message and dispatches it.
+// Returns nil for notifications (requests without an id).
 func (s *Server) handleMessage(ctx context.Context, msg []byte) *Response {
 	var raw struct {
 		JSONRPC string          `json:"jsonrpc"`
@@ -86,6 +97,11 @@ func (s *Server) handleMessage(ctx context.Context, msg []byte) *Response {
 
 	if err := json.Unmarshal(msg, &raw); err != nil {
 		return NewParseError(extractID(msg))
+	}
+
+	// JSON-RPC 2.0 notification: no "id" member (field absent)
+	if raw.ID == nil {
+		return nil
 	}
 
 	if raw.JSONRPC != Version {

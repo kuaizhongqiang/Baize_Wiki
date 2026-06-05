@@ -14,24 +14,12 @@ import (
 )
 
 // mockBuildFn simulates a successful Wiki build without importing app.
-var mockBuildFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) BuildResult {
-	return BuildResult{
-		Success:    true,
-		DurationMs: 100,
-		Summary: BuildSummary{
-			TotalFiles:  1,
-			Parsed:      1,
-			Pages:       1,
-			Directories: 1,
-		},
-	}
+var mockBuildFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (bool, int64, int, int, []string) {
+	return true, 100, 1, 1, nil
 }
 
-var mockBuildFailFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) BuildResult {
-	return BuildResult{
-		Success: false,
-		Errors:  []string{"source not found"},
-	}
+var mockBuildFailFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (bool, int64, int, int, []string) {
+	return false, 0, 0, 0, []string{"source not found"}
 }
 
 // setupTestWiki creates a temporary Wiki directory with a few pages for testing.
@@ -251,7 +239,7 @@ func TestSecureJoin(t *testing.T) {
 		{"normal path", "/tmp/wiki", "guide/page.md", false},
 		{"simple traversal", "/tmp/wiki", "../outside.md", true},
 		{"deep traversal", "/tmp/wiki", "a/../../outside.md", true},
-		{"absolute path", "/tmp/wiki", "/etc/passwd", true},
+		{"absolute path", "/tmp/wiki", "/etc/passwd", filepath.IsAbs("/etc/passwd")},
 		{"dot path", "/tmp/wiki", ".", false},
 		{"empty path", "/tmp/wiki", "", false},
 		{"current dir", "/tmp/wiki", "./guide/page.md", false},

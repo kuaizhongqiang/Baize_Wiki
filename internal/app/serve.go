@@ -64,7 +64,10 @@ func RunServe(ctx context.Context, wikiDir, transportType, addr string) error {
 
 	// Create server and register tools
 	server := mcp.NewServer(transport)
-	mcp.RegisterAllTools(server, absWiki, RunBuild)
+	mcp.RegisterAllTools(server, absWiki, func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (bool, int64, int, int, []string) {
+		r := RunBuild(ctx, source, output, configPath, level, draft, quiet)
+		return r.Success, r.DurationMs, r.Summary.Pages, r.Summary.Directories, r.Errors
+	})
 
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)

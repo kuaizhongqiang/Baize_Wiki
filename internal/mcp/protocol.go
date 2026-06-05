@@ -105,15 +105,18 @@ type InputSchema struct {
 	Required   []string                  `json:"required,omitempty"`
 }
 
+// ItemsSchema describes the schema of array items.
+type ItemsSchema struct {
+	Type string `json:"type"`
+}
+
 // PropertySchema describes a single tool parameter.
 type PropertySchema struct {
-	Type        string   `json:"type"`
-	Description string   `json:"description,omitempty"`
-	Default     any      `json:"default,omitempty"`
-	Enum        []string `json:"enum,omitempty"`
-	Items       *struct {
-		Type string `json:"type"`
-	} `json:"items,omitempty"`
+	Type        string       `json:"type"`
+	Description string       `json:"description,omitempty"`
+	Default     any          `json:"default,omitempty"`
+	Enum        []string     `json:"enum,omitempty"`
+	Items       *ItemsSchema `json:"items,omitempty"`
 }
 
 // MCPToolResult wraps tool output in the format expected by MCP.

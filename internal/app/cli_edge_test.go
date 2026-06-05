@@ -15,7 +15,8 @@ func TestEdgeSourceEqualsOutput(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Doc"), 0644))
 
 	result := RunBuild(context.Background(), dir, dir, "", 1, false, false)
-	assert.True(t, result.Success)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Errors[0], "source and output directories must be different")
 
 	_, err := os.Stat(filepath.Join(dir, "_index.md"))
 	t.Logf("_index.md exists in source dir: %v", err == nil)
