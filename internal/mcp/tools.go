@@ -9,13 +9,34 @@ import (
 	"sort"
 	"time"
 
-	"github.com/kuaizhongqiang/baize-wiki/internal/app"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/storage"
 )
 
+// RunBuildFunc is the signature of the Wiki build function provided by the app layer.
+// It must be injected to avoid an import cycle (mcp → app → mcp).
+type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) BuildResult
+
+// BuildResult mirrors app.BuildResult, defined here to break the import cycle.
+type BuildResult struct {
+	Success    bool          `json:"success"`
+	DurationMs int64         `json:"duration_ms"`
+	Summary    BuildSummary  `json:"summary"`
+	Errors     []string      `json:"errors"`
+	Warnings   []string      `json:"warnings"`
+}
+
+// BuildSummary mirrors app.Summary.
+type BuildSummary struct {
+	TotalFiles  int `json:"total_files"`
+	Parsed      int `json:"parsed"`
+	Pages       int `json:"pages"`
+	Directories int `json:"directories"`
+}
+
 // toolWikiBuild handles wiki_build: builds or updates a Wiki from source.
-func toolWikiBuild(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
+func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
+	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
 	var p struct {
 		Source string `json:"source"`
 		Output string `json:"output"`
@@ -28,7 +49,7 @@ func toolWikiBuild(ctx context.Context, params json.RawMessage) (any, *ErrorObj)
 		}
 	}
 
-	result := app.RunBuild(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
+	result := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
 	if !result.Success {
 		errMsg := "build failed"
 		if len(result.Errors) > 0 {
@@ -310,7 +331,7 @@ func toolWikiStats(wikiDir string) ToolHandler {
 }
 
 // RegisterAllTools registers all 5 MCP tools on the server.
-func RegisterAllTools(srv *Server, wikiDir string) {
+func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 	srv.RegisterTool(MCPToolDefinition{
 		Name:        "wiki_build",
 		Description: "Build or update Wiki from source directory. Scans specified path and generates structured Wiki output at configurable complexity levels.",
@@ -323,7 +344,7 @@ func RegisterAllTools(srv *Server, wikiDir string) {
 				"level":  {Type: "integer", Description: "Output complexity: 1 | 2 | 3"},
 			},
 		},
-	}, toolWikiBuild)
+	}, toolWikiBuild(buildFn))
 
 	srv.RegisterTool(MCPToolDefinition{
 		Name:        "wiki_read",

@@ -7,10 +7,32 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kuaizhongqiang/baize-wiki/internal/app"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mockBuildFn simulates a successful Wiki build without importing app.
+var mockBuildFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) BuildResult {
+	return BuildResult{
+		Success:    true,
+		DurationMs: 100,
+		Summary: BuildSummary{
+			TotalFiles:  1,
+			Parsed:      1,
+			Pages:       1,
+			Directories: 1,
+		},
+	}
+}
+
+var mockBuildFailFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) BuildResult {
+	return BuildResult{
+		Success: false,
+		Errors:  []string{"source not found"},
+	}
+}
 
 // setupTestWiki creates a temporary Wiki directory with a few pages for testing.
 func setupTestWiki(t *testing.T) string {
@@ -24,28 +46,19 @@ func setupTestWiki(t *testing.T) string {
 	require.NoError(t, os.WriteFile(filepath.Join(wikiDir, "index.md"), []byte("# Wiki Home"), 0644))
 
 	// Create meta.json
-	srv := storage.NewStore()
+	store := storage.NewStore()
 	cfg := model.DefaultConfig()
 	cfg.Output.Level = 2
 	wiki := model.NewWiki("Test Wiki", "./src", wikiDir, cfg)
 	wiki.PageCount = 3
-	require.NoError(t, srv.WriteMeta(wikiDir, wiki))
+	require.NoError(t, store.WriteMeta(wikiDir, wiki))
 
 	return wikiDir
 }
 
 func TestToolWikiBuild(t *testing.T) {
-	srcDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "doc.md"), []byte("# Doc"), 0644))
-
-	outDir := t.TempDir()
-	params, _ := json.Marshal(map[string]any{
-		"source": srcDir,
-		"output": outDir,
-		"level":  1,
-	})
-
-	result, errObj := toolWikiBuild(context.Background(), params)
+	params, _ := json.Marshal(map[string]any{"level": 1})
+	result, errObj := toolWikiBuild(mockBuildFn)(context.Background(), params)
 	assert.Nil(t, errObj)
 
 	toolResult, ok := result.(MCPToolResult)
@@ -54,12 +67,10 @@ func TestToolWikiBuild(t *testing.T) {
 }
 
 func TestToolWikiBuildInvalidSource(t *testing.T) {
-	params, _ := json.Marshal(map[string]any{
-		"source": "/nonexistent/path",
-	})
-
-	result, errObj := toolWikiBuild(context.Background(), params)
+	params, _ := json.Marshal(map[string]any{})
+	result, errObj := toolWikiBuild(mockBuildFailFn)(context.Background(), params)
 	assert.Nil(t, errObj)
+
 	toolResult, ok := result.(MCPToolResult)
 	require.True(t, ok)
 	assert.True(t, toolResult.IsError)
@@ -96,7 +107,6 @@ func TestToolWikiReadPathTraversal(t *testing.T) {
 	wikiDir := setupTestWiki(t)
 	handler := toolWikiRead(wikiDir)
 
-	// Try to escape the wiki directory
 	params, _ := json.Marshal(map[string]string{"path": "../../etc/passwd"})
 	_, errObj := handler(context.Background(), params)
 	require.NotNil(t, errObj)
@@ -121,7 +131,6 @@ func TestToolWikiListDepth(t *testing.T) {
 	wikiDir := setupTestWiki(t)
 	handler := toolWikiList(wikiDir)
 
-	// Depth 0: should not include children
 	params, _ := json.Marshal(map[string]any{"depth": 0})
 	result, errObj := handler(context.Background(), params)
 	assert.Nil(t, errObj)
@@ -146,7 +155,6 @@ func TestToolWikiAddNew(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, toolResult.Content[0].Text, "created")
 
-	// Verify file was created
 	assert.FileExists(t, filepath.Join(wikiDir, "new-page.md"))
 }
 
@@ -154,7 +162,6 @@ func TestToolWikiAddOverwrite(t *testing.T) {
 	wikiDir := setupTestWiki(t)
 	handler := toolWikiAdd(wikiDir)
 
-	// First write
 	params1, _ := json.Marshal(map[string]string{
 		"path":    "test.md",
 		"content": "# First",
@@ -162,7 +169,6 @@ func TestToolWikiAddOverwrite(t *testing.T) {
 	_, errObj := handler(context.Background(), params1)
 	assert.Nil(t, errObj)
 
-	// Second write without overwrite should fail
 	params2, _ := json.Marshal(map[string]string{
 		"path":    "test.md",
 		"content": "# Second",
@@ -178,7 +184,6 @@ func TestToolWikiAddOverwriteAllowed(t *testing.T) {
 	wikiDir := setupTestWiki(t)
 	handler := toolWikiAdd(wikiDir)
 
-	// First write
 	params1, _ := json.Marshal(map[string]string{
 		"path":    "test.md",
 		"content": "# First",
@@ -186,7 +191,6 @@ func TestToolWikiAddOverwriteAllowed(t *testing.T) {
 	_, errObj := handler(context.Background(), params1)
 	assert.Nil(t, errObj)
 
-	// Second write WITH overwrite should succeed
 	params2, _ := json.Marshal(map[string]any{
 		"path":      "test.md",
 		"content":   "# Second",
@@ -228,7 +232,6 @@ func TestToolWikiAddPathSecurity(t *testing.T) {
 	wikiDir := setupTestWiki(t)
 	handler := toolWikiAdd(wikiDir)
 
-	// Try path traversal
 	params, _ := json.Marshal(map[string]string{
 		"path":    "../../evil.md",
 		"content": "# evil",
@@ -269,7 +272,7 @@ func TestSecureJoin(t *testing.T) {
 func TestRegisterAllTools(t *testing.T) {
 	wikiDir := t.TempDir()
 	srv := NewServer(newTestTransport(""))
-	RegisterAllTools(srv, wikiDir)
+	RegisterAllTools(srv, wikiDir, mockBuildFn)
 
 	assert.Len(t, srv.tools, 5)
 	assert.Contains(t, srv.tools, "wiki_build")
