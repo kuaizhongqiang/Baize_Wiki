@@ -17,7 +17,7 @@ import (
 // RunBuildFunc is the signature of the Wiki build function provided by the app layer.
 // Returns (success, durationMs, pages, directories, errors).
 // It must be injected to avoid an import cycle (mcp → app → mcp).
-type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (success bool, durationMs int64, pages int, directories int, errs []string)
+type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) (success bool, durationMs int64, pages int, directories int, errs []string)
 
 // toolWikiBuild handles wiki_build: builds or updates a Wiki from source.
 func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
@@ -34,7 +34,7 @@ func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 			}
 		}
 
-		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
+		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false, false)
 		if !success {
 			errMsg := "build failed"
 			if len(errs) > 0 {

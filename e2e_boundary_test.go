@@ -20,7 +20,7 @@ func TestE2EBuildNonMDInSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "app.go"), []byte("package main"), 0644))
 
 	// Phase 1: should only pick up .md files
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 	assert.True(t, result.Success)
 	assert.Equal(t, 1, result.Summary.TotalFiles, "Phase 1: only .md files")
 }
@@ -36,7 +36,7 @@ func TestE2EBuildNestedSource(t *testing.T) {
 	for _, level := range []int{1, 2, 3} {
 		t.Run("level", func(t *testing.T) {
 			outDir := t.TempDir()
-			result := app.RunBuild(context.Background(), srcDir, outDir, "", level, false, false)
+			result := app.RunBuild(context.Background(), srcDir, outDir, "", level, false, false, false)
 			assert.True(t, result.Success, "level %d build should succeed", level)
 		})
 	}
@@ -72,7 +72,7 @@ func TestE2EBuildWithFrontmatterNoTitle(t *testing.T) {
 	content := "---\ntags: [test]\n---\n\n# Heading Title\n"
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "notitle.md"), []byte(content), 0644))
 
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 	assert.True(t, result.Success)
 }
 
@@ -84,7 +84,7 @@ func TestE2EBuildWithFrontmatterDraft(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "draft.md"), []byte("---\ntitle: Draft\ndraft: true\n---\n\n# Draft"), 0644))
 
 	// Default: draft pages not filtered out (Phase 1 just includes everything)
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 	assert.True(t, result.Success)
 	assert.Equal(t, 2, result.Summary.Pages, "Phase 1 does not filter drafts")
 }

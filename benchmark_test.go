@@ -22,7 +22,7 @@ func BenchmarkFullPipeline(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		outDir := b.TempDir()
-		result := app.RunBuild(context.Background(), dir, outDir, "", 1, false, true)
+		result := app.RunBuild(context.Background(), dir, outDir, "", 1, false, true, false)
 		if !result.Success {
 			b.Fatalf("build failed: %v", result.Errors)
 		}
@@ -41,7 +41,7 @@ func BenchmarkLargeMerge(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		outDir := b.TempDir()
-		result := app.RunBuild(context.Background(), dir, outDir, "", 1, false, true)
+		result := app.RunBuild(context.Background(), dir, outDir, "", 1, false, true, false)
 		if !result.Success {
 			b.Fatalf("build failed: %v", result.Errors)
 		}
@@ -64,7 +64,7 @@ func BenchmarkDeepTree(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		outDir := b.TempDir()
-		result := app.RunBuild(context.Background(), dir, outDir, "", 3, false, true)
+		result := app.RunBuild(context.Background(), dir, outDir, "", 3, false, true, false)
 		if !result.Success {
 			b.Fatalf("build failed: %v", result.Errors)
 		}

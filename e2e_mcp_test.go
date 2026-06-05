@@ -16,7 +16,7 @@ import (
 )
 
 // e2eMockBuild is a stub build function for E2E MCP tests.
-var e2eMockBuild mcp.RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (bool, int64, int, int, []string) {
+var e2eMockBuild mcp.RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) (bool, int64, int, int, []string) {
 	return true, 100, 1, 1, nil
 }
 
@@ -103,7 +103,7 @@ func setupE2EWiki(t *testing.T) (string, string) {
 	outDir := t.TempDir()
 
 	// Build the wiki at Level 2 so file paths are preserved
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 2, false, true)
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 2, false, true, false)
 	require.True(t, result.Success)
 
 	return srcDir, outDir

@@ -50,6 +50,11 @@ func Parse(file model.FileInfo) (*model.Page, string) {
 		// Non-markdown: use filename as title, full content as body
 		page.Title = strings.TrimSuffix(filepath.Base(file.Path), file.Extension)
 		page.Content = body
+
+		// Extract doc comments from source code files for description/summary
+		if desc := ExtractComments(file.Path, body); desc != "" {
+			page.Meta.Description = desc
+		}
 	}
 
 	// Fallback title: try sections first, then filename

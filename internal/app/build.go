@@ -22,7 +22,7 @@ import (
 func NewBuildCmd() *cobra.Command {
 	var output string
 	var level int
-	var draft, quiet bool
+	var draft, quiet, scanAll bool
 
 	cmd := &cobra.Command{
 		Use:   "build [source]",
@@ -45,7 +45,7 @@ func NewBuildCmd() *cobra.Command {
 			configPath, _ := cmd.Flags().GetString("config")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 
-			result := RunBuild(context.Background(), source, output, configPath, level, draft, quiet)
+			result := RunBuild(context.Background(), source, output, configPath, level, draft, quiet, scanAll)
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")
@@ -71,6 +71,7 @@ func NewBuildCmd() *cobra.Command {
 	cmd.Flags().IntVarP(&level, "level", "l", 0, "Output complexity: 1=flat, 2=structured, 3=deep")
 	cmd.Flags().BoolVar(&draft, "draft", false, "Include pages marked as draft")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode (errors and summary only)")
+	cmd.Flags().BoolVar(&scanAll, "scan-all", false, "Scan all text files, not just .md/.mdx")
 
 	return cmd
 }
@@ -93,7 +94,7 @@ type Summary struct {
 }
 
 // RunBuild executes the full build pipeline: config → scanner → parser → generator → storage.
-func RunBuild(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) BuildResult {
+func RunBuild(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) BuildResult {
 	start := time.Now()
 	result := BuildResult{}
 
@@ -145,6 +146,7 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 	scanCfg := scanner.ScanConfig{
 		MaxSize: cfg.Scan.MaxSize,
 		Exclude: cfg.Scan.Exclude,
+		ScanAll: scanAll,
 	}
 	files, err := scanner.Scan(ctx, absSource, scanCfg)
 	if err != nil {

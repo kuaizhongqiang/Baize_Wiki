@@ -16,7 +16,7 @@ func TestRunBuildSuccess(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "doc.md"), []byte("# Test Page"), 0644))
 
-	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 
 	assert.True(t, result.Success, "build should succeed")
 	assert.Equal(t, 1, result.Summary.TotalFiles)
@@ -28,7 +28,7 @@ func TestRunBuildSuccess(t *testing.T) {
 func TestRunBuildInvalidSource(t *testing.T) {
 	outDir := t.TempDir()
 
-	result := RunBuild(context.Background(), "/nonexistent/path", outDir, "", 1, false, false)
+	result := RunBuild(context.Background(), "/nonexistent/path", outDir, "", 1, false, false, false)
 
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Errors[0], "does not exist")
@@ -38,7 +38,7 @@ func TestRunBuildEmptySource(t *testing.T) {
 	srcDir := t.TempDir()
 	outDir := t.TempDir()
 
-	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Errors[0], "no valid files")
@@ -50,7 +50,7 @@ func TestRunBuildJSONOutput(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "doc.md"), []byte("# Doc"), 0644))
 
-	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, true)
+	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, true, false)
 
 	assert.True(t, result.Success)
 	assert.Greater(t, result.DurationMs, int64(0))
@@ -64,7 +64,7 @@ func TestRunBuildWithFrontmatter(t *testing.T) {
 	content := "---\ntitle: My Page\n---\n\n# My Page\n\nHello world"
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "page.md"), []byte(content), 0644))
 
-	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 
 	assert.True(t, result.Success)
 	assert.Equal(t, 1, result.Summary.Pages)
@@ -80,7 +80,7 @@ func TestRunBuildMultipleLevels(t *testing.T) {
 	for _, level := range []int{1, 2, 3} {
 		t.Run("level", func(t *testing.T) {
 			outDir := t.TempDir()
-			result := RunBuild(context.Background(), srcDir, outDir, "", level, false, false)
+			result := RunBuild(context.Background(), srcDir, outDir, "", level, false, false, false)
 			assert.True(t, result.Success, "level %d should succeed", level)
 			assert.Equal(t, 2, result.Summary.TotalFiles)
 		})
