@@ -12,59 +12,73 @@ import (
 const sectionContentMaxLen = 200
 
 // parseMarkdown parses markdown content into a tree of sections.
-// Uses goldmark AST to extract heading-based structure.
+// Uses goldmark AST to extract heading-based structure,
+// then builds a tree via recursive partitioning.
 func parseMarkdown(content string) []model.Section {
 	reader := text.NewReader([]byte(content))
 	doc := goldmark.New().Parser().Parse(reader)
 
-	var sections []model.Section
-	// Stack stores indices into sections slice for building the tree.
-	// When sections grows, its backing array may be reallocated, so we
-	// use indices rather than pointers to avoid stale references.
-	var stack []int
-
+	// Collect all headings into a flat list.
+	var headings []model.Section
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-
 		heading, ok := n.(*ast.Heading)
 		if !ok {
 			return ast.WalkContinue, nil
 		}
-
 		title := extractHeadingText(heading, reader)
 		if title == "" {
 			return ast.WalkContinue, nil
 		}
-
-		sec := model.Section{
+		headings = append(headings, model.Section{
 			ID:    generateSectionID(title),
 			Level: heading.Level,
 			Title: title,
-		}
-
-		// Pop stack until we find a parent with a lower heading level.
-		for len(stack) > 0 && sections[stack[len(stack)-1]].Level >= heading.Level {
-			stack = stack[:len(stack)-1]
-		}
-
-		if len(stack) > 0 {
-			// Add as child of the nearest ancestor.
-			parentIdx := stack[len(stack)-1]
-			sections[parentIdx].Children = append(sections[parentIdx].Children, sec)
-		} else {
-			// Add as a root-level section.
-			sections = append(sections, sec)
-		}
-
-		// Push this section's index onto the stack.
-		stack = append(stack, len(sections)-1)
-
+		})
 		return ast.WalkContinue, nil
 	})
 
-	return sections
+	if len(headings) == 0 {
+		return nil
+	}
+
+	// Build tree via recursive partitioning.
+	// Each call processes a slice of headings at a given level:
+	//   - headings at `level` become root nodes
+	//   - headings between two `level` nodes are children of the first
+	return buildTree(headings, 1)
+}
+
+// buildTree recursively partitions headings into a section tree.
+// headings at `level` become immediate children of the result;
+// entries between them (with level > minLevel) are grouped as children.
+func buildTree(headings []model.Section, level int) []model.Section {
+	var result []model.Section
+	i := 0
+	for i < len(headings) {
+		if headings[i].Level != level {
+			i++
+			continue
+		}
+
+		sec := headings[i]
+		i++
+
+		// Collect child headings (those between this heading and the
+		// next heading at the same or shallower level).
+		childStart := i
+		for i < len(headings) && headings[i].Level > level {
+			i++
+		}
+		if childStart < i {
+			sec.Children = buildTree(headings[childStart:i], level+1)
+		}
+
+		result = append(result, sec)
+	}
+	return result
 }
 
 // extractHeadingText retrieves the text content of a heading node.

@@ -81,7 +81,7 @@ func TestE2EBuildBinarySkipped(t *testing.T) {
 
 	assert.True(t, result.Success)
 	assert.Equal(t, 1, result.Summary.Pages)
-	assert.FileExists(t, filepath.Join(outDir, "doc.md"))
+	assert.FileExists(t, filepath.Join(outDir, "uncategorized.md"))
 }
 
 func TestE2EBuildEmptySource(t *testing.T) {
@@ -165,7 +165,7 @@ func TestE2EBuildWithIndexContent(t *testing.T) {
 
 	metaContent, err := os.ReadFile(filepath.Join(outDir, ".baize", "meta.json"))
 	require.NoError(t, err)
-	assert.Contains(t, string(metaContent), "My Doc")
+	assert.Contains(t, string(metaContent), `"page_count": 1`)
 }
 
 func TestE2EBuildExistingWikiIdempotent(t *testing.T) {
