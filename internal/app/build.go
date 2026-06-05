@@ -125,6 +125,21 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 		return result
 	}
 
+	// Resolve output directory early for source/output overlap check
+	outputDir := cfg.Output.Dir
+	if output != "" {
+		outputDir = output
+	}
+	absOutput, err := filepath.Abs(outputDir)
+	if err != nil {
+		result.Errors = append(result.Errors, "output: "+err.Error())
+		return result
+	}
+	if absSource == absOutput {
+		result.Errors = append(result.Errors, "source and output directories must be different: "+absSource)
+		return result
+	}
+
 	// 2. Scan
 	scanCfg := scanner.ScanConfig{
 		MaxSize: cfg.Scan.MaxSize,
@@ -159,16 +174,6 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 	}
 
 	// 4. Generate
-	outputDir := cfg.Output.Dir
-	if output != "" {
-		outputDir = output
-	}
-	absOutput, err := filepath.Abs(outputDir)
-	if err != nil {
-		result.Errors = append(result.Errors, "output: "+err.Error())
-		return result
-	}
-
 	wiki := model.NewWiki(cfg.Name, absSource, absOutput, cfg)
 
 	store := storage.NewStore()
@@ -184,7 +189,7 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 
 	if !quiet {
 		fmt.Fprintf(os.Stderr, "✓ 生成完成: 输出到 %s (%d 页面, %d 目录, Level %d)\n",
-			outputDir, len(pages), dirCount, cfg.Output.Level)
+			absOutput, len(pages), dirCount, cfg.Output.Level)
 	}
 
 	result.Success = true

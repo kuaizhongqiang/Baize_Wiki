@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -57,6 +58,13 @@ func RunInfo(wikiDir string, showTree, showStats, jsonOutput bool) (interface{},
 		return nil, err
 	}
 
+	fmt.Printf("Wiki 目录: %s\n", wikiDir)
+
+	if showStats {
+		printStats(wikiDir, metaData)
+		return nil, nil
+	}
+
 	if jsonOutput {
 		return map[string]interface{}{
 			"success": true,
@@ -65,12 +73,7 @@ func RunInfo(wikiDir string, showTree, showStats, jsonOutput bool) (interface{},
 		}, nil
 	}
 
-	fmt.Printf("Wiki 目录: %s\n", wikiDir)
 	fmt.Printf("元数据: %s\n", string(metaData))
-
-	if showStats {
-		// Stats are shown via meta.json content above
-	}
 
 	if showTree {
 		fmt.Printf("%s/\n", filepath.Base(wikiDir))
@@ -78,6 +81,63 @@ func RunInfo(wikiDir string, showTree, showStats, jsonOutput bool) (interface{},
 	}
 
 	return nil, nil
+}
+
+// printStats prints Wiki statistics from meta.json.
+func printStats(wikiDir string, metaData []byte) {
+	// Parse meta.json into a raw map for flexible access
+	var meta map[string]interface{}
+	if err := json.Unmarshal(metaData, &meta); err != nil {
+		fmt.Printf("无法解析 meta.json: %v\n", err)
+		return
+	}
+
+	pageCount := 0
+	if pc, ok := meta["page_count"].(float64); ok {
+		pageCount = int(pc)
+	}
+
+	// Count actual .md files and directories
+	fileCount := 0
+	pageFiles := 0
+	dirCount := 0
+
+	filepath.Walk(wikiDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if path == wikiDir {
+			return nil
+		}
+		rel, _ := filepath.Rel(wikiDir, path)
+		if rel == ".baize" || strings.HasPrefix(rel, ".baize"+string(filepath.Separator)) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info.IsDir() {
+			dirCount++
+		} else {
+			fileCount++
+			if filepath.Ext(path) == ".md" {
+				pageFiles++
+			}
+		}
+		return nil
+	})
+
+	fmt.Printf("  页面数: %d\n", pageCount)
+	fmt.Printf("  .md 文件: %d\n", pageFiles)
+	fmt.Printf("  目录数: %d\n", dirCount)
+	fmt.Printf("  总文件数: %d\n", fileCount)
+
+	if name, ok := meta["name"].(string); ok && name != "" {
+		fmt.Printf("  Wiki 名称: %s\n", name)
+	}
+	if ver, ok := meta["version"].(float64); ok && ver > 0 {
+		fmt.Printf("  版本: %.0f\n", ver)
+	}
 }
 
 // printTree recursively prints a directory tree of wiki files.
