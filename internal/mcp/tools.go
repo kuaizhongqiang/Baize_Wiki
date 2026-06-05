@@ -37,36 +37,36 @@ type BuildSummary struct {
 // toolWikiBuild handles wiki_build: builds or updates a Wiki from source.
 func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
-	var p struct {
-		Source string `json:"source"`
-		Output string `json:"output"`
-		Config string `json:"config"`
-		Level  int    `json:"level"`
-	}
-	if params != nil {
-		if err := json.Unmarshal(params, &p); err != nil {
-			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params: " + err.Error()}
+		var p struct {
+			Source string `json:"source"`
+			Output string `json:"output"`
+			Config string `json:"config"`
+			Level  int    `json:"level"`
 		}
-	}
-
-	result := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
-	if !result.Success {
-		errMsg := "build failed"
-		if len(result.Errors) > 0 {
-			errMsg = result.Errors[0]
+		if params != nil {
+			if err := json.Unmarshal(params, &p); err != nil {
+				return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params: " + err.Error()}
+			}
 		}
-		return NewMCPErrorResult(fmt.Sprintf(`{"code":"ERR_BUILD_FAILED","message":"%s"}`, errMsg)), nil
-	}
 
-	data, _ := json.Marshal(map[string]any{
-		"success":    true,
-		"duration_ms": result.DurationMs,
-		"summary": map[string]int{
-			"pages":       result.Summary.Pages,
-			"directories": result.Summary.Directories,
-		},
-	})
-	return NewMCPToolResult(string(data)), nil
+		result := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
+		if !result.Success {
+			errMsg := "build failed"
+			if len(result.Errors) > 0 {
+				errMsg = result.Errors[0]
+			}
+			return NewMCPErrorResult(fmt.Sprintf(`{"code":"ERR_BUILD_FAILED","message":"%s"}`, errMsg)), nil
+		}
+
+		data, _ := json.Marshal(map[string]any{
+			"success":    true,
+			"duration_ms": result.DurationMs,
+			"summary": map[string]int{
+				"pages":       result.Summary.Pages,
+				"directories": result.Summary.Directories,
+			},
+		})
+		return NewMCPToolResult(string(data)), nil
 	}
 }
 
