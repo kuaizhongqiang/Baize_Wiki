@@ -279,17 +279,11 @@ baize-wiki help [command]
   "summary": {
     "total_files": 24,
     "parsed": 24,
-    "skipped": 3,
     "pages": 24,
-    "directories": 8,
-    "links": 47,
-    "dangling_links": 3,
-    "dangling_links_file": "./wiki/.baize/dangling-links.txt"
+    "directories": 8
   },
   "errors": [],
-  "warnings": [
-    {"message": "悬空链接: [[未创建页面]]", "detail": "建议创建目标页面或移除引用"}
-  ]
+  "warnings": []
 }
 ```
 

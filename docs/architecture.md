@@ -294,18 +294,8 @@ baize-wiki build --scan-all ./project
 - 需配合 `.baizeignore` 排除 `vendor/`、`node_modules/` 等
 
 ### 5.3 二进制探测算法
-    ▼
-识别文件类型并解析
-    │
-    ├── .md       → Markdown 解析 (frontmatter + 内容)
-    ├── .txt      → 纯文本
-    ├── .json     → JSON 解析
-    ├── .yaml/.yml→ YAML 解析
-    ├── .go/.py/.js/.ts/.rs 等代码文件
-    │              → Phase 1: 纯文本读取, 文件名做标题
-    │              → Phase 3+: 提取注释生成文档
-    └── 其他文本   → 纯文本读取
-```
+
+Phase 1 默认模式只扫 .md/.mdx，二进制探测作为安全检查。Phase 2+ 启用 --scan-all 后，其他文本文件类型识别规则逐步生效。
 
 ### 二进制探测算法
 

@@ -79,7 +79,7 @@ AI Agent（如 Claude Code、Cline）通过以下方式集成：
 {
   "content": [{
     "type": "text",
-    "text": "{\"success\":true,\"duration_ms\":2340,\"summary\":{\"pages\":24,\"directories\":8,\"links\":47}}"
+    "text": "{\"success\":true,\"duration_ms\":2340,\"summary\":{\"pages\":24,\"directories\":8}}"
   }]
 }
 ```
@@ -274,7 +274,7 @@ AI Agent（如 Claude Code、Cline）通过以下方式集成：
 {
   "content": [{
     "type": "text",
-    "text": "{\"name\":\"我的 Wiki\",\"page_count\":24,\"directory_count\":8,\"total_links\":127,\"dangling_links\":3,\"tags\":[\"architecture\",\"go\",\"api\"],\"updated_at\":\"2026-06-05T14:30:00Z\",\"wiki_path\":\"/path/to/wiki\"}"
+    "text": "{\"name\":\"我的 Wiki\",\"page_count\":24,\"directory_count\":8,\"tags\":[\"architecture\",\"go\",\"api\"],\"updated_at\":\"2026-06-05T14:30:00Z\",\"wiki_path\":\"/path/to/wiki\"}"
   }]
 }
 ```

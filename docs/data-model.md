@@ -90,11 +90,9 @@ type Frontmatter struct {
     Draft       bool              `yaml:"draft,omitempty" json:"draft,omitempty"`
     Category    string            `yaml:"category,omitempty" json:"category,omitempty"`
     Custom      map[string]any    `yaml:",inline" json:"custom,omitempty"` // 自定义字段
-}
-
-> ⚠️ **兼容性说明**：`Custom` 通过 `yaml:",inline"` 捕获未在 Frontmatter 结构体中定义的字段。这意味着未来版本新增的具名字段（如 `type`、`date`）可能与旧版本写入的自定义字段发生冲突。自定义字段请避免使用未来可能保留的字段名。详见 [向后兼容策略](#-向后兼容策略)。
-}
 ```
+
+> ⚠️ **兼容性说明**：`Custom` 通过 `yaml:",inline"` 捕获未在 Frontmatter 结构体中定义的字段。这意味着未来版本新增的具名字段（如 `type`、`date`）可能与旧版本写入的自定义字段发生冲突。自定义字段请避免使用未来可能保留的字段名。
 
 示例：
 ```yaml
