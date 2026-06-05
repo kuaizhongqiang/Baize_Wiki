@@ -50,6 +50,6 @@ func splitFrontmatter(content string) (fm, body, warning string) {
 	}
 
 	fm = strings.TrimSpace(rest[:endIdx])
-	body = rest[bodyStart:]
+	body = strings.TrimSpace(rest[bodyStart:])
 	return fm, body, ""
 }

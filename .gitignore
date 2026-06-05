@@ -1,0 +1,21 @@
+# Build artifacts
+bin/
+dist/
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tool artifacts
+.reasonix/
+REASONIX.md
+
+# Generated config
+baize.yaml

@@ -34,6 +34,13 @@ func NewBuildCmd() *cobra.Command {
 				source = args[0]
 			}
 
+			// Validate level flag if explicitly set
+			if cmd.Flags().Changed("level") {
+				if level < 1 || level > 3 {
+					return fmt.Errorf("invalid level: %d, must be 1, 2, or 3", level)
+				}
+			}
+
 			configPath, _ := cmd.Flags().GetString("config")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 

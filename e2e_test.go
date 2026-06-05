@@ -34,6 +34,8 @@ func TestE2EBuildLevel2(t *testing.T) {
 	srcDir := t.TempDir()
 	outDir := t.TempDir()
 
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "guide"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "api"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "guide", "start.md"), []byte("---\ntitle: Start\n---\n\n# Start\n\nGuide content"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "api", "ref.md"), []byte("---\ntitle: API Ref\n---\n\n# API\n\nAPI content"), 0644))
 

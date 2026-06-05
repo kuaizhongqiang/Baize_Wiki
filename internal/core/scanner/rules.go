@@ -59,10 +59,16 @@ func NewRuleMatcherFromFile(path string) (*RuleMatcher, error) {
 // Returns true if the path matches any ignore rule (and is not negated).
 func (rm *RuleMatcher) Match(path string, isDir bool) bool {
 	matched := false
+	normalizedPath := filepath.ToSlash(path)
 
 	for _, r := range rm.rules {
-		// For dir-only rules, skip non-directories
 		if r.dirOnly && !isDir {
+			// Dir-only pattern: check if the path is inside a matching directory.
+			// e.g. `temp/` matches `temp/cache.txt` because it's under `temp/`.
+			normalizedPattern := filepath.ToSlash(r.pattern)
+			if strings.HasPrefix(normalizedPath, normalizedPattern+"/") {
+				matched = !r.negate
+			}
 			continue
 		}
 

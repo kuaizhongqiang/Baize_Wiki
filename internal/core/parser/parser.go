@@ -48,13 +48,22 @@ func Parse(file model.FileInfo) (*model.Page, string) {
 		page.Content = contentBody
 	} else {
 		// Non-markdown: use filename as title, full content as body
-		page.Title = strings.TrimSuffix(filepath.Base(file.Path), file.Ext)
+		page.Title = strings.TrimSuffix(filepath.Base(file.Path), file.Extension)
 		page.Content = body
 	}
 
-	// Fallback title
+	// Fallback title: try sections first, then filename
 	if page.Title == "" {
-		page.Title = strings.TrimSuffix(filepath.Base(file.Path), file.Ext)
+		// Try to extract title from first h1 heading
+		for _, sec := range page.Sections {
+			if sec.Level == 1 {
+				page.Title = sec.Title
+				break
+			}
+		}
+	}
+	if page.Title == "" {
+		page.Title = strings.TrimSuffix(filepath.Base(file.Path), file.Extension)
 	}
 
 	// Set Depth from path
