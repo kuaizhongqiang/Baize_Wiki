@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "go build",
+      "go test",
+      "go vet",
+      "go mod tidy",
+      "go fmt",
+      "git status",
+      "git diff",
+      "git log",
+      "git add",
+      "git commit",
+      "mkdir -p",
+      "rm -rf bin/"
+    ]
+  }
+}
