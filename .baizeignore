@@ -1,0 +1,44 @@
+# .baizeignore — Baize Wiki 扫描忽略规则
+# 语法兼容 .gitignore，每行一个模式
+
+# 版本控制
+.git/
+.svn/
+.hg/
+
+# 依赖目录
+node_modules/
+vendor/
+packages/
+__pycache__/
+.venv/
+venv/
+
+# 构建产物
+dist/
+build/
+target/
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 媒体文件（可选）
+# *.png
+# *.jpg
+# *.mp3
+# *.mp4
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# 其他工具的输出
+.idea/
+.vscode/
+*.suo
+*.user
