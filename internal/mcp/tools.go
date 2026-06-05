@@ -67,6 +67,7 @@ func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 		},
 	})
 	return NewMCPToolResult(string(data)), nil
+	}
 }
 
 // toolWikiRead handles wiki_read: reads a page from the Wiki directory.
