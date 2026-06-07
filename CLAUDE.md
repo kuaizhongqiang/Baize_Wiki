@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Baize Wiki (白泽维基)** — An AI Agent-oriented Wiki generation and consumption tool written in Go.
 
-- **Status**: Phase 3 (Full-text Search) — done. Phase 4 (Vector Search) — planning.
+- **Status**: v0.1.0-alpha — 5 phases complete.
 - **Goal**: A single-binary CLI that scans a source directory of documents, parses them, builds a searchable Wiki with full-text + semantic search, and exposes it via CLI and MCP.
 - **License**: MIT
 - **Module**: `github.com/kuaizhongqiang/baize-wiki`
@@ -94,19 +94,15 @@ CLI (cobra) → App Layer (use-case orchestration) → Core Domain (business log
 - All code, comments, commit messages in English; README/docs in bilingual or Chinese
 - Module path: `github.com/kuaizhongqiang/baize-wiki`
 
-## Phase 1 Milestones
+## Phases Completed
 
-| #  | Milestone         | What                                                              |
-|----|-------------------|-------------------------------------------------------------------|
-| M1 | Project scaffold  | Go module, Makefile, goreleaser, cobra CLI stubs                  |
-| M2 | Core model        | model/ package, config, errors + tests                            |
-| M3 | Scanner           | scanner/ package (ignore rules, binary detection) + tests         |
-| M4 | Parser            | parser/ package (frontmatter, markdown, plain text) + tests       |
-| M5 | Generator         | generator/ (Level 1/2/3) + storage/ + tests                       |
-| M6 | CLI integration   | init/build/info commands wired end-to-end                         |
-| M7 | Polish            | README, examples, CI, benchmarks, tag v0.1.0-alpha                |
-
-The project is **before M1** — no Go code exists yet. Start with M1.
+| Phase | Focus                                                   | Status |
+|-------|---------------------------------------------------------|--------|
+| 1     | CLI MVP (scan → parse → generate)                      | ✅     |
+| 2     | MCP Server (stdio/TCP, 6 tools)                        | ✅     |
+| 3     | Full-text search (bleve) + code comments                | ✅     |
+| 4     | Vector search + hybrid BM25/vector                      | ✅     |
+| 5     | `[[wiki-link]]` cross-links + backlinks                 | ✅     |
 
 ## Key Design Docs
 
