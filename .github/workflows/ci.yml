@@ -61,7 +61,7 @@ jobs:
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test]
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
