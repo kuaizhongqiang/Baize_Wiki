@@ -46,6 +46,21 @@ func Parse(file model.FileInfo) (*model.Page, string) {
 		// Parse markdown sections
 		page.Sections = parseMarkdown(contentBody)
 		page.Content = contentBody
+
+		// Extract [[wiki-link]] references (Phase 5)
+		refs := ExtractWikiLinks(contentBody)
+		if len(refs) > 0 {
+			links := make([]model.Link, 0, len(refs))
+			for _, ref := range refs {
+				links = append(links, model.Link{
+					SourceID:   page.ID,
+					TargetPath: ref.Target,
+					Text:       ref.Text,
+					Type:       model.LinkInternal, // type refined by Linker later
+				})
+			}
+			page.Links = links
+		}
 	} else {
 		// Non-markdown: use filename as title, full content as body
 		page.Title = strings.TrimSuffix(filepath.Base(file.Path), file.Extension)

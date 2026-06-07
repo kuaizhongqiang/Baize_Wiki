@@ -11,6 +11,7 @@ import (
 	"github.com/kuaizhongqiang/baize-wiki/internal/config"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/generator"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/linker"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/parser"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/scanner"
@@ -175,6 +176,23 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 	if len(pages) == 0 {
 		result.Errors = append(result.Errors, "no pages could be parsed")
 		return result
+	}
+
+	// 3.5 Resolve wiki-links (Phase 5)
+	l := linker.New()
+	if err := l.Link(ctx, pages); err != nil {
+		result.Warnings = append(result.Warnings, "link: "+err.Error())
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "⚠ 链接解析失败: %v\n", err)
+		}
+	} else if !quiet {
+		totalLinks := 0
+		for _, p := range pages {
+			totalLinks += len(p.Links)
+		}
+		if totalLinks > 0 {
+			fmt.Fprintf(os.Stderr, "✓ 链接解析完成: %d 个链接\n", totalLinks)
+		}
 	}
 
 	// 4. Generate
