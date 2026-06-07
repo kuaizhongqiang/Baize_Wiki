@@ -13,8 +13,9 @@ const mergeSplitSize = 50 * 1024 // 50KB
 
 // PageRef is a lightweight reference to a page within a directory node.
 type PageRef struct {
-	Title string `json:"title"`
-	Path  string `json:"path"`
+	Title         string `json:"title"`
+	Path          string `json:"path"`
+	BacklinkCount int    `json:"backlink_count,omitempty"`
 }
 
 // DirNode represents a directory in the Wiki output tree.
@@ -102,8 +103,9 @@ func (lb *LevelBuilder) Flat(pages []*model.Page) *DirNode {
 				fileName = cat + ".md"
 			}
 			root.Pages = append(root.Pages, PageRef{
-				Title: cat,
-				Path:  fileName,
+				Title:         cat,
+				Path:          fileName,
+				BacklinkCount: len(p.Backlinks),
 			})
 			p.Path = fileName
 			if p.Title == "" {
@@ -198,8 +200,9 @@ func (lb *LevelBuilder) Structured(pages []*model.Page) *DirNode {
 				relativePath = p.Title + ".md"
 			}
 			dir.Pages = append(dir.Pages, PageRef{
-				Title: p.Title,
-				Path:  name + "/" + relativePath,
+				Title:         p.Title,
+				Path:          name + "/" + relativePath,
+				BacklinkCount: len(p.Backlinks),
 			})
 		}
 
@@ -259,8 +262,9 @@ func (lb *LevelBuilder) Deep(pages []*model.Page) *DirNode {
 		}
 
 		current.Pages = append(current.Pages, PageRef{
-			Title: p.Title,
-			Path:  pagePath,
+			Title:         p.Title,
+			Path:          pagePath,
+			BacklinkCount: len(p.Backlinks),
 		})
 	}
 

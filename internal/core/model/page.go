@@ -27,9 +27,28 @@ type Page struct {
 	Weight     int         `json:"weight"`
 	SourceFile string      `json:"source_file,omitempty"`
 	UpdatedAt  time.Time   `json:"updated_at,omitempty"`
+	Links      []Link      `json:"links,omitempty"`     // links from this page (Phase 5)
+	Backlinks  []Link      `json:"backlinks,omitempty"` // links pointing to this page (Phase 5)
 }
 
-// Section represents a heading-level section in a document, forming a tree.
+// Link represents a cross-reference between pages.
+type Link struct {
+	SourceID   string   `json:"source_id"`   // source page ID
+	TargetID   string   `json:"target_id"`   // target page ID (empty = dangling)
+	TargetPath string   `json:"target_path"` // target page path
+	Text       string   `json:"text"`        // display text
+	Type       LinkType `json:"type"`        // link type
+}
+
+// LinkType categorises a link.
+type LinkType string
+
+const (
+	LinkInternal LinkType = "internal" // [[wiki-link]] internal link
+	LinkExternal LinkType = "external" // https:// external link
+	LinkResource LinkType = "resource" // ./image.png resource reference
+	LinkAuto     LinkType = "auto"     // auto-detected page reference (Phase 5+)
+)
 type Section struct {
 	ID       string    `json:"id"`
 	Level    int       `json:"level"`

@@ -110,7 +110,11 @@ func renderIndex(node *DirNode) string {
 			return node.Pages[i].Title < node.Pages[j].Title
 		})
 		for _, p := range node.Pages {
-			fmt.Fprintf(&b, "- [%s](%s)\n", p.Title, p.Path)
+			line := fmt.Sprintf("- [%s](%s)", p.Title, p.Path)
+			if p.BacklinkCount > 0 {
+				line += fmt.Sprintf(" — 被 %d 个页面引用", p.BacklinkCount)
+			}
+			b.WriteString(line + "\n")
 		}
 		b.WriteString("\n")
 	}

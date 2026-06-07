@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/parser"
 	"github.com/spf13/cobra"
 )
 
@@ -43,12 +44,27 @@ func NewInfoCmd() *cobra.Command {
 	return cmd
 }
 
-// RunInfo displays information about a Wiki directory.
+// PageInfo holds detailed information about a single page.
+type PageInfo struct {
+	Title     string `json:"title"`
+	Path      string `json:"path"`
+	Filesize  int64  `json:"filesize"`
+	LinkCount int    `json:"link_count"`
+}
+
+// RunInfo displays information about a Wiki directory or a specific page.
 func RunInfo(wikiDir string, showTree, showStats, jsonOutput bool) (interface{}, error) {
 	if wikiDir == "" {
 		wikiDir = "./wiki"
 	}
 
+	// Check if argument is a specific page file
+	info, err := os.Stat(wikiDir)
+	if err == nil && !info.IsDir() && (filepath.Ext(wikiDir) == ".md" || filepath.Ext(wikiDir) == ".mdx") {
+		return showPageInfo(wikiDir, jsonOutput)
+	}
+
+	// Wiki-level info
 	metaPath := filepath.Join(wikiDir, ".baize", "meta.json")
 	metaData, err := os.ReadFile(metaPath)
 	if err != nil {
@@ -58,21 +74,16 @@ func RunInfo(wikiDir string, showTree, showStats, jsonOutput bool) (interface{},
 		return nil, err
 	}
 
-	fmt.Printf("Wiki 目录: %s\n", wikiDir)
-
 	if showStats {
 		printStats(wikiDir, metaData)
 		return nil, nil
 	}
 
 	if jsonOutput {
-		return map[string]interface{}{
-			"success": true,
-			"path":    wikiDir,
-			"meta":    string(metaData),
-		}, nil
+		return buildJSONOutput(wikiDir, metaData, showTree), nil
 	}
 
+	fmt.Printf("Wiki 目录: %s\n", wikiDir)
 	fmt.Printf("元数据: %s\n", string(metaData))
 
 	if showTree {
@@ -83,9 +94,75 @@ func RunInfo(wikiDir string, showTree, showStats, jsonOutput bool) (interface{},
 	return nil, nil
 }
 
+// showPageInfo displays information about a single page.
+func showPageInfo(path string, jsonOutput bool) (*PageInfo, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	title := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	refs := parser.ExtractWikiLinks(string(content))
+
+	info := &PageInfo{
+		Title:     title,
+		Path:      path,
+		Filesize:  int64(len(content)),
+		LinkCount: len(refs),
+	}
+
+	if jsonOutput {
+		return info, nil
+	}
+
+	fmt.Printf("页面: %s\n", path)
+	fmt.Printf("  标题: %s\n", title)
+	fmt.Printf("  大小: %d 字节\n", info.Filesize)
+	fmt.Printf("  链接数: %d\n", info.LinkCount)
+
+	return info, nil
+}
+
+// buildJSONOutput builds the JSON response for wiki info.
+func buildJSONOutput(wikiDir string, metaData []byte, showTree bool) map[string]interface{} {
+	out := map[string]interface{}{
+		"success": true,
+		"path":    wikiDir,
+		"meta":    string(metaData),
+	}
+	if showTree {
+		out["tree"] = buildTreeJSON(wikiDir, "")
+	}
+	return out
+}
+
+// buildTreeJSON recursively builds a JSON tree structure.
+func buildTreeJSON(dir, prefix string) []map[string]interface{} {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var nodes []map[string]interface{}
+	for _, entry := range entries {
+		if entry.Name() == ".baize" {
+			continue
+		}
+		node := map[string]interface{}{
+			"name": entry.Name(),
+		}
+		if entry.IsDir() {
+			node["type"] = "directory"
+			node["children"] = buildTreeJSON(filepath.Join(dir, entry.Name()), prefix+"  ")
+		} else {
+			node["type"] = "page"
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
 // printStats prints Wiki statistics from meta.json.
 func printStats(wikiDir string, metaData []byte) {
-	// Parse meta.json into a raw map for flexible access
 	var meta map[string]interface{}
 	if err := json.Unmarshal(metaData, &meta); err != nil {
 		fmt.Printf("无法解析 meta.json: %v\n", err)
@@ -97,10 +174,11 @@ func printStats(wikiDir string, metaData []byte) {
 		pageCount = int(pc)
 	}
 
-	// Count actual .md files and directories
+	// Count files/directories and aggregate link data
 	fileCount := 0
 	pageFiles := 0
 	dirCount := 0
+	totalLinks := 0
 
 	filepath.Walk(wikiDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -122,6 +200,12 @@ func printStats(wikiDir string, metaData []byte) {
 			fileCount++
 			if filepath.Ext(path) == ".md" {
 				pageFiles++
+				// Count [[wiki-links]] in the page
+				content, err := os.ReadFile(path)
+				if err == nil {
+					refs := parser.ExtractWikiLinks(string(content))
+					totalLinks += len(refs)
+				}
 			}
 		}
 		return nil
@@ -131,6 +215,7 @@ func printStats(wikiDir string, metaData []byte) {
 	fmt.Printf("  .md 文件: %d\n", pageFiles)
 	fmt.Printf("  目录数: %d\n", dirCount)
 	fmt.Printf("  总文件数: %d\n", fileCount)
+	fmt.Printf("  链接总数: %d\n", totalLinks)
 
 	if name, ok := meta["name"].(string); ok && name != "" {
 		fmt.Printf("  Wiki 名称: %s\n", name)
