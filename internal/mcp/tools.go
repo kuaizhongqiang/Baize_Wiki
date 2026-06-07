@@ -12,6 +12,7 @@ import (
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/storage"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/vector"
 )
 
 // RunBuildFunc is the signature of the Wiki build function provided by the app layer.
@@ -325,6 +326,8 @@ func toolWikiSearch(wikiDir string) ToolHandler {
 			Tags           []string `json:"tags"`
 			Limit          int      `json:"limit"`
 			IncludeContent bool     `json:"include_content"`
+			Semantic       bool     `json:"semantic"`
+			Weight         float64  `json:"weight"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params: " + err.Error()}
@@ -335,17 +338,9 @@ func toolWikiSearch(wikiDir string) ToolHandler {
 		if p.Limit <= 0 {
 			p.Limit = 10
 		}
-
-		indexPath := filepath.Join(wikiDir, ".baize", "index.bleve")
-		// Check if index exists before trying to open
-		if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-			return NewMCPErrorResult(`{"code":"ERR_INDEX_NOT_FOUND","message":"index not found (run wiki_build first)"}`), nil
+		if p.Weight <= 0 || p.Weight > 1 {
+			p.Weight = 0.5
 		}
-		idx, err := index.NewIndex(indexPath)
-		if err != nil {
-			return NewMCPErrorResult(`{"code":"ERR_INDEX_NOT_FOUND","message":"index not found (run wiki_build first)"}`), nil
-		}
-		defer idx.Close()
 
 		opts := index.SearchOpts{
 			Limit:       p.Limit,
@@ -355,9 +350,14 @@ func toolWikiSearch(wikiDir string) ToolHandler {
 			opts.Tags = p.Tags
 		}
 
-		results, err := idx.Search(ctx, p.Query, opts)
-		if err != nil {
-			return nil, &ErrorObj{Code: ErrInternal, Message: err.Error()}
+		var results []index.SearchResult
+
+		if p.Semantic {
+			// Hybrid search path
+			results = semanticSearch(ctx, wikiDir, p.Query, opts, p.Weight)
+		} else {
+			// BM25 only path (Phase 3 compatible)
+			results = bm25Search(ctx, wikiDir, p.Query, opts)
 		}
 
 		data, _ := json.Marshal(map[string]any{
@@ -367,6 +367,61 @@ func toolWikiSearch(wikiDir string) ToolHandler {
 		})
 		return NewMCPToolResult(string(data)), nil
 	}
+}
+
+// bm25Search performs a BM25 full-text search (Phase 3 compatible).
+func bm25Search(ctx context.Context, wikiDir, query string, opts index.SearchOpts) []index.SearchResult {
+	indexPath := filepath.Join(wikiDir, ".baize", "index.bleve")
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		return []index.SearchResult{}
+	}
+	idx, err := index.NewIndex(indexPath)
+	if err != nil {
+		return []index.SearchResult{}
+	}
+	defer idx.Close()
+
+	results, err := idx.Search(ctx, query, opts)
+	if err != nil {
+		return []index.SearchResult{}
+	}
+	return results
+}
+
+// semanticSearch performs a hybrid BM25 + vector search.
+func semanticSearch(ctx context.Context, wikiDir, query string, opts index.SearchOpts, alpha float64) []index.SearchResult {
+	indexPath := filepath.Join(wikiDir, ".baize", "index.bleve")
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		return []index.SearchResult{}
+	}
+	idx, err := index.NewIndex(indexPath)
+	if err != nil {
+		return []index.SearchResult{}
+	}
+	defer idx.Close()
+
+	vecDir := filepath.Join(wikiDir, ".baize", "vectors")
+	store := vector.NewMemoryStore(vecDir)
+	defer store.Close()
+
+	embedder := vector.NewLocalEmbedder(256)
+	hybrid := vector.NewHybridSearch(idx, store, embedder, alpha)
+
+	hybridResults, err := hybrid.Search(ctx, query, opts)
+	if err != nil {
+		return []index.SearchResult{}
+	}
+
+	out := make([]index.SearchResult, len(hybridResults))
+	for i, hr := range hybridResults {
+		out[i] = index.SearchResult{
+			Path:  hr.Path,
+			Title: hr.Title,
+			Score: hr.Score,
+			Tags:  hr.Tags,
+		}
+	}
+	return out
 }
 
 // RegisterAllTools registers all 6 MCP tools on the server.
@@ -438,7 +493,7 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 
 	srv.RegisterTool(MCPToolDefinition{
 		Name:        "wiki_search",
-		Description: "Search Wiki content. Supports keyword search and tag filtering. Returns matching pages with context snippets.",
+		Description: "Search Wiki content. Supports keyword search, tag filtering, and optional hybrid BM25+vector semantic search.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]PropertySchema{
@@ -446,6 +501,8 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 				"tags":            {Type: "array", Description: "Filter by tags", Items: &ItemsSchema{Type: "string"}},
 				"limit":           {Type: "integer", Description: "Max results (default 10)"},
 				"include_content": {Type: "boolean", Description: "Include full content (default false)"},
+				"semantic":        {Type: "boolean", Description: "Enable hybrid BM25+vector semantic search (default false)"},
+				"weight":          {Type: "number", Description: "BM25 weight α for hybrid search (0.0-1.0, default 0.5)"},
 			},
 			Required: []string{"query"},
 		},

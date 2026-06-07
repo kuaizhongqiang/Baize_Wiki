@@ -3,14 +3,15 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 **PM: Claude** — Task management, code review, architecture oversight.
-**Coding Agents** — Implementation and testing.
+**Coder** — Implementation (see [CODING.md](CODING.md) for work standards).
+**Tester** — Testing and bug reporting (see [TESTING.md](TESTING.md) for work standards).
 
 ## Project
 
 **Baize Wiki (白泽维基)** — An AI Agent-oriented Wiki generation and consumption tool written in Go.
 
-- **Status**: Phase 1 (MVP) — design docs audited and approved, Go code not yet implemented. See [docs/phase-1-plan.md](docs/phase-1-plan.md).
-- **Goal**: A single-binary CLI that scans a source directory of documents (`.md`/`.mdx`), parses them, and generates a structured Wiki output (folder + MD files) at configurable complexity Levels 1/2/3.
+- **Status**: Phase 3 (Full-text Search) — done. Phase 4 (Vector Search) — planning.
+- **Goal**: A single-binary CLI that scans a source directory of documents, parses them, builds a searchable Wiki with full-text + semantic search, and exposes it via CLI and MCP.
 - **License**: MIT
 - **Module**: `github.com/kuaizhongqiang/baize-wiki`
 
@@ -115,15 +116,8 @@ The project is **before M1** — no Go code exists yet. Start with M1.
 | [docs/data-model.md](docs/data-model.md)                    | Core structs, config schema, error model, interface contracts    |
 | [docs/cli-spec.md](docs/cli-spec.md)                        | Command definitions, flags, exit codes, JSON output format       |
 | [docs/mcp-spec.md](docs/mcp-spec.md)                        | MCP tools, protocol details (Phase 2)                            |
-| [docs/phase-1-plan.md](docs/phase-1-plan.md)                | Milestone breakdown, task decomposition, dependencies            |
+| [docs/phase-1-plan.md](docs/phase-1-plan.md)                | Phase 1 — CLI MVP (scan → parse → generate)                      |
+| [docs/phase-2-plan.md](docs/phase-2-plan.md)                | Phase 2 — MCP Server                                             |
+| [docs/phase-3-plan.md](docs/phase-3-plan.md)                | Phase 3 — Full-text search + code comments (已完成)               |
+| [docs/phase-4-plan.md](docs/phase-4-plan.md)                | Phase 4 — Vector search + hybrid retrieval (规划中)               |
 | [docs/design-audit.md](docs/design-audit.md)                | Design audit results, residual cleanup items before coding       |
-
-### Pre-coding cleanup needed
-
-The design audit identified 5 small cleanup items (< 30 min total) before Phase 1 coding starts:
-
-1. Remove `links`/`dangling_links` from JSON example in cli-spec.md
-2. Remove `"links":47` from mcp-spec.md build output example
-3. Clean up residual text in architecture.md Section 5
-4. Fix Frontmatter code block syntax error in data-model.md
-5. Add Phase scope annotations to file type list in architecture.md

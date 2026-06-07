@@ -9,7 +9,9 @@ import (
 var commentPrefixes = map[string]string{
 	".go": "//",
 	".js": "//",
+	".jsx": "//",
 	".ts": "//",
+	".tsx": "//",
 	".rs": "//",
 	".c":  "//",
 	".cpp": "//",
@@ -34,7 +36,9 @@ var commentPrefixes = map[string]string{
 var multiLineOpen = map[string]string{
 	".go": "/*",
 	".js": "/*",
+	".jsx": "/*",
 	".ts": "/*",
+	".tsx": "/*",
 	".rs": "/*",
 	".c":  "/*",
 	".cpp": "/*",
@@ -49,7 +53,9 @@ var multiLineOpen = map[string]string{
 var multiLineClose = map[string]string{
 	".go": "*/",
 	".js": "*/",
+	".jsx": "*/",
 	".ts": "*/",
+	".tsx": "*/",
 	".rs": "*/",
 	".c":  "*/",
 	".cpp": "*/",
@@ -75,6 +81,7 @@ func ExtractComments(filename string, content string) string {
 	// Collect top-of-file comment block
 	var comments []string
 	inBlock := false
+	seenCode := false
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -91,12 +98,17 @@ func ExtractComments(filename string, content string) string {
 				if cleaned := cleanComment(beforeClose, "", ext); cleaned != "" {
 					comments = append(comments, cleaned)
 				}
+				inBlock = false
 				continue
 			}
 			if cleaned := cleanComment(trimmed, "", ext); cleaned != "" {
 				comments = append(comments, cleaned)
 			}
 			continue
+		}
+
+		if seenCode {
+			break
 		}
 
 		// Check for block comment start
@@ -127,15 +139,13 @@ func ExtractComments(filename string, content string) string {
 			continue
 		}
 
-		// Empty line — stop if we've already collected comments
+		// Empty line — continue if we haven't seen code yet
 		if trimmed == "" {
-			if len(comments) > 0 {
-				break
-			}
 			continue
 		}
 
-		// Non-comment code line: stop collecting
+		// Non-comment code line: mark seenCode
+		seenCode = true
 		if len(comments) > 0 {
 			break
 		}

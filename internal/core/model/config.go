@@ -8,6 +8,7 @@ type Config struct {
 	Output      OutputConfig   `yaml:"output" json:"output"`
 	Organize    OrganizeConfig `yaml:"organize" json:"organize"`
 	Features    FeatureConfig  `yaml:"features" json:"features"`
+	Vector      VectorConfig   `yaml:"vector" json:"vector"`
 }
 
 // ScanConfig controls source scanning behaviour.
@@ -33,6 +34,16 @@ type OrganizeConfig struct {
 type FeatureConfig struct {
 	Draft   bool `yaml:"draft" json:"draft"`
 	ScanAll bool `yaml:"scan_all" json:"scan_all"`
+	Vector  bool `yaml:"vector" json:"vector"`
+}
+
+// VectorConfig controls vector search (Phase 4+).
+type VectorConfig struct {
+	Mode         string  `yaml:"mode" json:"mode"`                   // local | api
+	HybridWeight float64 `yaml:"hybrid_weight" json:"hybrid_weight"` // BM25 weight α (0.0-1.0)
+	Provider     string  `yaml:"provider,omitempty" json:"provider,omitempty"`
+	APIKey       string  `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	Model        string  `yaml:"model,omitempty" json:"model,omitempty"`
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -48,6 +59,10 @@ func DefaultConfig() Config {
 		},
 		Organize: OrganizeConfig{
 			By: "directory",
+		},
+		Vector: VectorConfig{
+			Mode:         "local",
+			HybridWeight: 0.5,
 		},
 	}
 }
