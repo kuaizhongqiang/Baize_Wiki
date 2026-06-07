@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/vector"
 	"github.com/spf13/cobra"
 )
 
@@ -23,21 +24,28 @@ func NewSearchCmd() *cobra.Command {
 	var wikiDir string
 	var limit int
 	var tags []string
-	var withContent, jsonOutput bool
+	var withContent, jsonOutput, semantic bool
+	var hybridWeight float64
 
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search Wiki content",
-		Long:  "Search Wiki pages by keywords. Requires a built Wiki with search index.",
+		Long:  "Search Wiki pages by keywords. Use --semantic for hybrid BM25 + vector search.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := args[0]
-
-			result := RunSearch(context.Background(), wikiDir, query, index.SearchOpts{
+			opts := index.SearchOpts{
 				Tags:        tags,
 				Limit:       limit,
 				WithContent: withContent,
-			})
+			}
+
+			var result SearchResultJSON
+			if semantic {
+				result = RunSemanticSearch(context.Background(), wikiDir, query, opts, hybridWeight)
+			} else {
+				result = RunSearch(context.Background(), wikiDir, query, opts)
+			}
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")
@@ -68,11 +76,13 @@ func NewSearchCmd() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&tags, "tags", "t", nil, "Filter by tags")
 	cmd.Flags().BoolVarP(&withContent, "with-content", "c", false, "Include full content")
 	cmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "JSON format output")
+	cmd.Flags().BoolVar(&semantic, "semantic", false, "Enable hybrid BM25 + vector search")
+	cmd.Flags().Float64Var(&hybridWeight, "hybrid-weight", 0.5, "BM25 weight α (0.0-1.0) for hybrid search")
 
 	return cmd
 }
 
-// RunSearch executes a search against the Wiki's bleve index.
+// RunSearch executes a BM25 full-text search against the Wiki's bleve index.
 func RunSearch(ctx context.Context, wikiDir, queryStr string, opts index.SearchOpts) SearchResultJSON {
 	result := SearchResultJSON{
 		Success: false,
@@ -96,5 +106,54 @@ func RunSearch(ctx context.Context, wikiDir, queryStr string, opts index.SearchO
 	result.Success = true
 	result.Total = len(results)
 	result.Results = results
+	return result
+}
+
+// RunSemanticSearch executes a hybrid BM25 + vector semantic search.
+func RunSemanticSearch(ctx context.Context, wikiDir, queryStr string, opts index.SearchOpts, alpha float64) SearchResultJSON {
+	result := SearchResultJSON{
+		Success: false,
+		Query:   queryStr,
+	}
+
+	// 1. Open bleve index
+	indexPath := filepath.Join(wikiDir, ".baize", "index.bleve")
+	idx, err := index.NewIndex(indexPath)
+	if err != nil {
+		result.Results = []index.SearchResult{}
+		return result
+	}
+	defer idx.Close()
+
+	// 2. Open vector store
+	vecDir := filepath.Join(wikiDir, ".baize", "vectors")
+	store := vector.NewMemoryStore(vecDir)
+	defer store.Close()
+
+	// 3. Create embedder
+	embedder := vector.NewLocalEmbedder(256)
+
+	// 4. Hybrid search
+	hybrid := vector.NewHybridSearch(idx, store, embedder, alpha)
+	hybridResults, err := hybrid.Search(ctx, queryStr, opts)
+	if err != nil {
+		result.Results = []index.SearchResult{}
+		return result
+	}
+
+	// 5. Convert HybridResult back to SearchResult for the JSON output
+	out := make([]index.SearchResult, len(hybridResults))
+	for i, hr := range hybridResults {
+		out[i] = index.SearchResult{
+			Path:  hr.Path,
+			Title: hr.Title,
+			Score: hr.Score,
+			Tags:  hr.Tags,
+		}
+	}
+
+	result.Success = true
+	result.Total = len(out)
+	result.Results = out
 	return result
 }

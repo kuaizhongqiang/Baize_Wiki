@@ -15,6 +15,7 @@ import (
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/parser"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/scanner"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/storage"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/vector"
 	"github.com/spf13/cobra"
 )
 
@@ -210,6 +211,43 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 		result.Warnings = append(result.Warnings, "index open: "+err.Error())
 		if !quiet {
 			fmt.Fprintf(os.Stderr, "⚠ 索引初始化失败: %v\n", err)
+		}
+	}
+
+	// 6. Build vector index (Phase 4, non-fatal on failure)
+	if cfg.Features.Vector {
+		embedder := vector.NewLocalEmbedder(256)
+		vecDir := filepath.Join(absOutput, ".baize", "vectors")
+		store := vector.NewMemoryStore(vecDir)
+
+		buildErr := false
+		for _, page := range pages {
+			text := page.Title
+			if page.Content != "" {
+				text += "\n" + page.Content
+			}
+			emb, err := embedder.Embed(ctx, text)
+			if err != nil {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("vector embed %s: %v", page.Path, err))
+				buildErr = true
+				continue
+			}
+			if err := store.Store(ctx, page.ID, page.Path, page.Title, emb); err != nil {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("vector store %s: %v", page.Path, err))
+				buildErr = true
+				continue
+			}
+		}
+
+		if err := store.Close(); err != nil {
+			result.Warnings = append(result.Warnings, "vector persist: "+err.Error())
+			buildErr = true
+		}
+
+		if !quiet && !buildErr {
+			fmt.Fprintf(os.Stderr, "✓ 向量索引完成: %d 页面\n", len(pages))
+		} else if buildErr && !quiet {
+			fmt.Fprintf(os.Stderr, "⚠ 向量索引部分失败\n")
 		}
 	}
 

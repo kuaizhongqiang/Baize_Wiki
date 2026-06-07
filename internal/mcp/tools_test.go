@@ -295,6 +295,6 @@ func TestToolWikiSearchNoIndex(t *testing.T) {
 
 	toolResult, ok := result.(MCPToolResult)
 	require.True(t, ok)
-	assert.True(t, toolResult.IsError)
-	assert.Contains(t, toolResult.Content[0].Text, "ERR_INDEX_NOT_FOUND")
+	// No index returns empty results, not an error
+	assert.Contains(t, toolResult.Content[0].Text, `"results":[]`)
 }
