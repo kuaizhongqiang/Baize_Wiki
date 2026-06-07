@@ -23,10 +23,11 @@ type RunBuildFunc func(ctx context.Context, source, output, configPath string, l
 func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
 		var p struct {
-			Source string `json:"source"`
-			Output string `json:"output"`
-			Config string `json:"config"`
-			Level  int    `json:"level"`
+			Source  string `json:"source"`
+			Output  string `json:"output"`
+			Config  string `json:"config"`
+			Level   int    `json:"level"`
+			ScanAll bool   `json:"scan_all"`
 		}
 		if params != nil {
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -34,7 +35,7 @@ func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 			}
 		}
 
-		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false, false)
+		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false, p.ScanAll)
 		if !success {
 			errMsg := "build failed"
 			if len(errs) > 0 {
@@ -316,7 +317,59 @@ func toolWikiStats(wikiDir string) ToolHandler {
 	}
 }
 
-// RegisterAllTools registers all 5 MCP tools on the server.
+// toolWikiSearch handles wiki_search: searches the Wiki index.
+func toolWikiSearch(wikiDir string) ToolHandler {
+	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
+		var p struct {
+			Query          string   `json:"query"`
+			Tags           []string `json:"tags"`
+			Limit          int      `json:"limit"`
+			IncludeContent bool     `json:"include_content"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params: " + err.Error()}
+		}
+		if p.Query == "" {
+			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "query is required"}
+		}
+		if p.Limit <= 0 {
+			p.Limit = 10
+		}
+
+		indexPath := filepath.Join(wikiDir, ".baize", "index.bleve")
+		// Check if index exists before trying to open
+		if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+			return NewMCPErrorResult(`{"code":"ERR_INDEX_NOT_FOUND","message":"index not found (run wiki_build first)"}`), nil
+		}
+		idx, err := index.NewIndex(indexPath)
+		if err != nil {
+			return NewMCPErrorResult(`{"code":"ERR_INDEX_NOT_FOUND","message":"index not found (run wiki_build first)"}`), nil
+		}
+		defer idx.Close()
+
+		opts := index.SearchOpts{
+			Limit:       p.Limit,
+			WithContent: p.IncludeContent,
+		}
+		if len(p.Tags) > 0 {
+			opts.Tags = p.Tags
+		}
+
+		results, err := idx.Search(ctx, p.Query, opts)
+		if err != nil {
+			return nil, &ErrorObj{Code: ErrInternal, Message: err.Error()}
+		}
+
+		data, _ := json.Marshal(map[string]any{
+			"query":   p.Query,
+			"total":   len(results),
+			"results": results,
+		})
+		return NewMCPToolResult(string(data)), nil
+	}
+}
+
+// RegisterAllTools registers all 6 MCP tools on the server.
 func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 	srv.RegisterTool(MCPToolDefinition{
 		Name:        "wiki_build",
@@ -324,10 +377,11 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]PropertySchema{
-				"source": {Type: "string", Description: "Source file or directory path"},
-				"output": {Type: "string", Description: "Wiki output directory"},
-				"config": {Type: "string", Description: "Config file path (default ./baize.yaml)"},
-				"level":  {Type: "integer", Description: "Output complexity: 1 | 2 | 3"},
+				"source":   {Type: "string", Description: "Source file or directory path"},
+				"output":   {Type: "string", Description: "Wiki output directory"},
+				"config":   {Type: "string", Description: "Config file path (default ./baize.yaml)"},
+				"level":    {Type: "integer", Description: "Output complexity: 1 | 2 | 3"},
+				"scan_all": {Type: "boolean", Description: "Scan all text files, not just .md/.mdx"},
 			},
 		},
 	}, toolWikiBuild(buildFn))
@@ -390,49 +444,12 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 			Properties: map[string]PropertySchema{
 				"query":           {Type: "string", Description: "Search keywords"},
 				"tags":            {Type: "array", Description: "Filter by tags", Items: &ItemsSchema{Type: "string"}},
-				"limit":           {Type: "integer", Description: "Max results (default 10)", Default: 10},
-				"include_content": {Type: "boolean", Description: "Include full content (default false)", Default: false},
+				"limit":           {Type: "integer", Description: "Max results (default 10)"},
+				"include_content": {Type: "boolean", Description: "Include full content (default false)"},
 			},
 			Required: []string{"query"},
 		},
 	}, toolWikiSearch(wikiDir))
-}
-
-// toolWikiSearch handles wiki_search: searches Wiki content via full-text index.
-func toolWikiSearch(wikiDir string) ToolHandler {
-	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
-		var p struct {
-			Query         string   `json:"query"`
-			Tags          []string `json:"tags"`
-			Limit         int      `json:"limit"`
-			IncludeContent bool    `json:"include_content"`
-		}
-		if err := json.Unmarshal(params, &p); err != nil {
-			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params"}
-		}
-		if p.Query == "" {
-			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "query is required"}
-		}
-
-		indexPath := filepath.Join(wikiDir, ".baize", "index.bleve")
-		idx, err := index.NewIndex(indexPath)
-		if err != nil {
-			return NewMCPErrorResult(`{"code":"ERR_INDEX_NOT_FOUND","message":"no search index found; run build first"}`), nil
-		}
-		defer idx.Close()
-
-		results, err := idx.Search(ctx, p.Query, index.SearchOpts{
-			Tags:        p.Tags,
-			Limit:       p.Limit,
-			WithContent: p.IncludeContent,
-		})
-		if err != nil {
-			return nil, &ErrorObj{Code: ErrInternal, Message: err.Error()}
-		}
-
-		data, _ := json.Marshal(results)
-		return NewMCPToolResult(string(data)), nil
-	}
 }
 
 // secureJoin joins a base directory with a user-supplied path and ensures

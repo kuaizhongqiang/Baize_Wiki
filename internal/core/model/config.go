@@ -31,7 +31,8 @@ type OrganizeConfig struct {
 
 // FeatureConfig toggles optional features.
 type FeatureConfig struct {
-	Draft bool `yaml:"draft" json:"draft"`
+	Draft   bool `yaml:"draft" json:"draft"`
+	ScanAll bool `yaml:"scan_all" json:"scan_all"`
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -60,12 +61,15 @@ func (c Config) Validate() error {
 }
 
 // Merge applies non-zero flag values on top of the config.
-func (c Config) Merge(level int, outputDir string) Config {
+func (c Config) Merge(level int, outputDir string, scanAll bool) Config {
 	if level >= 1 && level <= 3 {
 		c.Output.Level = level
 	}
 	if outputDir != "" {
 		c.Output.Dir = outputDir
+	}
+	if scanAll {
+		c.Features.ScanAll = true
 	}
 	return c
 }

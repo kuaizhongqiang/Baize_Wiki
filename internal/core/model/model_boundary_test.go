@@ -11,11 +11,11 @@ func TestConfigMergeLevelZero(t *testing.T) {
 	assert.Equal(t, 2, cfg.Output.Level)
 
 	// Merge with level=0 should NOT overwrite the default
-	merged := cfg.Merge(0, "")
+	merged := cfg.Merge(0, "", false)
 	assert.Equal(t, 2, merged.Output.Level, "level=0 should not overwrite existing value")
 
 	// Merge with level=1 should overwrite
-	merged = cfg.Merge(1, "")
+	merged = cfg.Merge(1, "", false)
 	assert.Equal(t, 1, merged.Output.Level)
 }
 

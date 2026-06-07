@@ -19,3 +19,6 @@ REASONIX.md
 
 # Generated config
 baize.yaml
+node_modules/
+.codegraph/
+*.test

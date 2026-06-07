@@ -48,22 +48,22 @@ func TestConfigMerge(t *testing.T) {
 	cfg.Output.Level = 1
 
 	// Merge with valid level override
-	merged := cfg.Merge(3, "")
+	merged := cfg.Merge(3, "", false)
 	assert.Equal(t, 3, merged.Output.Level)
 	assert.Equal(t, "./wiki", merged.Output.Dir)
 
 	// Merge with output dir override
-	merged2 := cfg.Merge(0, "./custom")
+	merged2 := cfg.Merge(0, "./custom", false)
 	assert.Equal(t, 1, merged2.Output.Level)
 	assert.Equal(t, "./custom", merged2.Output.Dir)
 
 	// Merge with both overrides
-	merged3 := cfg.Merge(2, "./other")
+	merged3 := cfg.Merge(2, "./other", false)
 	assert.Equal(t, 2, merged3.Output.Level)
 	assert.Equal(t, "./other", merged3.Output.Dir)
 
 	// Invalid levels should not be applied by Merge (Validate catches them)
-	merged4 := cfg.Merge(0, "")
+	merged4 := cfg.Merge(0, "", false)
 	assert.Equal(t, 1, merged4.Output.Level)
 }
 

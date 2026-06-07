@@ -284,3 +284,17 @@ func TestToolWikiAddCreatesParentDir(t *testing.T) {
 
 	assert.FileExists(t, filepath.Join(wikiDir, "deep", "nested", "page.md"))
 }
+
+func TestToolWikiSearchNoIndex(t *testing.T) {
+	wikiDir := t.TempDir() // no wiki/index here
+	handler := toolWikiSearch(wikiDir)
+
+	params, _ := json.Marshal(map[string]string{"query": "test"})
+	result, errObj := handler(context.Background(), params)
+	assert.Nil(t, errObj)
+
+	toolResult, ok := result.(MCPToolResult)
+	require.True(t, ok)
+	assert.True(t, toolResult.IsError)
+	assert.Contains(t, toolResult.Content[0].Text, "ERR_INDEX_NOT_FOUND")
+}

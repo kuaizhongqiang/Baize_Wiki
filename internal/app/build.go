@@ -104,7 +104,7 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 		result.Errors = append(result.Errors, "config: "+err.Error())
 		return result
 	}
-	cfg = cfg.Merge(level, output)
+	cfg = cfg.Merge(level, output, scanAll)
 
 	// Determine source path
 	sourceDir := source
@@ -146,7 +146,7 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 	scanCfg := scanner.ScanConfig{
 		MaxSize: cfg.Scan.MaxSize,
 		Exclude: cfg.Scan.Exclude,
-		ScanAll: scanAll,
+		ScanAll: cfg.Features.ScanAll,
 	}
 	files, err := scanner.Scan(ctx, absSource, scanCfg)
 	if err != nil {
@@ -195,15 +195,22 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 			absOutput, len(pages), dirCount, cfg.Output.Level)
 	}
 
-	// 5. Build full-text index (non-blocking on failure)
+	// 5. Build full-text search index (non-fatal on failure)
 	indexPath := filepath.Join(absOutput, ".baize", "index.bleve")
-	if idx, err := index.NewIndex(indexPath); err == nil {
+	idx, err := index.NewIndex(indexPath)
+	if err == nil {
 		if err := idx.Build(ctx, pages); err != nil {
-			result.Warnings = append(result.Warnings, "index build warning: "+err.Error())
+			result.Warnings = append(result.Warnings, "index build: "+err.Error())
+			if !quiet {
+				fmt.Fprintf(os.Stderr, "⚠ 索引构建失败: %v\n", err)
+			}
 		}
 		idx.Close()
 	} else {
-		result.Warnings = append(result.Warnings, "index create warning: "+err.Error())
+		result.Warnings = append(result.Warnings, "index open: "+err.Error())
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "⚠ 索引初始化失败: %v\n", err)
+		}
 	}
 
 	result.Success = true

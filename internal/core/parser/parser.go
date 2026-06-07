@@ -51,8 +51,9 @@ func Parse(file model.FileInfo) (*model.Page, string) {
 		page.Title = strings.TrimSuffix(filepath.Base(file.Path), file.Extension)
 		page.Content = body
 
-		// Extract doc comments from source code files for description/summary
-		if desc := ExtractComments(file.Path, body); desc != "" {
+		// Extract file-level doc comments for Description (when scan-all is enabled)
+		desc := ExtractComments(file.Path, body)
+		if desc != "" {
 			page.Meta.Description = desc
 		}
 	}
