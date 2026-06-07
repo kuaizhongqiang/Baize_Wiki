@@ -24,7 +24,7 @@ func TestRunInfoJSONOutput(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "doc.md"), []byte("# Doc"), 0644))
 
-	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 	require.True(t, result.Success)
 
 	info, err := RunInfo(outDir, false, false, true)
@@ -43,7 +43,7 @@ func TestRunInfoTreeFlag(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "doc.md"), []byte("# Doc"), 0644))
 
-	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 	require.True(t, result.Success)
 
 	_, err := RunInfo(outDir, true, false, false)

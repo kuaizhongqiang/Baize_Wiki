@@ -19,7 +19,7 @@ func TestSecurityPathTraversal(t *testing.T) {
 	content := []byte("# Traversal test")
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "safe.md"), content, 0644))
 
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 	assert.True(t, result.Success)
 
 	// Verify output files are within the output directory
@@ -52,7 +52,7 @@ func TestSecurityLongFilename(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "normal.md"), []byte("# Normal"), 0644))
 
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 
 	// Should handle long filenames gracefully — may fail or succeed but not crash
 	t.Logf("Long filename build: success=%v, errors=%v", result.Success, result.Errors)
@@ -72,7 +72,7 @@ func TestSecuritySpecialCharsFilename(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "normal.md"), []byte("# Normal"), 0644))
 
-	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false)
+	result := app.RunBuild(context.Background(), srcDir, outDir, "", 1, false, false, false)
 
 	// Should not crash — special char files may be skipped or processed
 	t.Logf("Special chars build: success=%v, pages=%d", result.Success, result.Summary.Pages)

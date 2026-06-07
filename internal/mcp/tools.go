@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/storage"
 )
@@ -16,7 +17,7 @@ import (
 // RunBuildFunc is the signature of the Wiki build function provided by the app layer.
 // Returns (success, durationMs, pages, directories, errors).
 // It must be injected to avoid an import cycle (mcp → app → mcp).
-type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet bool) (success bool, durationMs int64, pages int, directories int, errs []string)
+type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) (success bool, durationMs int64, pages int, directories int, errs []string)
 
 // toolWikiBuild handles wiki_build: builds or updates a Wiki from source.
 func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
@@ -33,7 +34,7 @@ func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 			}
 		}
 
-		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false)
+		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false, false)
 		if !success {
 			errMsg := "build failed"
 			if len(errs) > 0 {
@@ -380,6 +381,58 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 			Properties: map[string]PropertySchema{},
 		},
 	}, toolWikiStats(wikiDir))
+
+	srv.RegisterTool(MCPToolDefinition{
+		Name:        "wiki_search",
+		Description: "Search Wiki content. Supports keyword search and tag filtering. Returns matching pages with context snippets.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]PropertySchema{
+				"query":           {Type: "string", Description: "Search keywords"},
+				"tags":            {Type: "array", Description: "Filter by tags", Items: &ItemsSchema{Type: "string"}},
+				"limit":           {Type: "integer", Description: "Max results (default 10)", Default: 10},
+				"include_content": {Type: "boolean", Description: "Include full content (default false)", Default: false},
+			},
+			Required: []string{"query"},
+		},
+	}, toolWikiSearch(wikiDir))
+}
+
+// toolWikiSearch handles wiki_search: searches Wiki content via full-text index.
+func toolWikiSearch(wikiDir string) ToolHandler {
+	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
+		var p struct {
+			Query         string   `json:"query"`
+			Tags          []string `json:"tags"`
+			Limit         int      `json:"limit"`
+			IncludeContent bool    `json:"include_content"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params"}
+		}
+		if p.Query == "" {
+			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "query is required"}
+		}
+
+		indexPath := filepath.Join(wikiDir, ".baize", "index.bleve")
+		idx, err := index.NewIndex(indexPath)
+		if err != nil {
+			return NewMCPErrorResult(`{"code":"ERR_INDEX_NOT_FOUND","message":"no search index found; run build first"}`), nil
+		}
+		defer idx.Close()
+
+		results, err := idx.Search(ctx, p.Query, index.SearchOpts{
+			Tags:        p.Tags,
+			Limit:       p.Limit,
+			WithContent: p.IncludeContent,
+		})
+		if err != nil {
+			return nil, &ErrorObj{Code: ErrInternal, Message: err.Error()}
+		}
+
+		data, _ := json.Marshal(results)
+		return NewMCPToolResult(string(data)), nil
+	}
 }
 
 // secureJoin joins a base directory with a user-supplied path and ensures

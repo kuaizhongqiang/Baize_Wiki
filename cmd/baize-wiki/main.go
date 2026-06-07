@@ -37,6 +37,7 @@ func main() {
 		app.NewInitCmd(),
 		app.NewBuildCmd(),
 		app.NewInfoCmd(),
+		app.NewSearchCmd(),
 		app.NewMCPCmd(),
 	)
 
