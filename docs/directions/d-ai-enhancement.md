@@ -115,6 +115,8 @@ FileInfo {
     path: "核心架构/核心架构.md"
     extension: ".md"        // 决定处理策略
     content: "..."          // 全文
+    size: 10240             // 文件大小（字节），用于截断判断
+    content_hash: "sha256"  // 内容哈希，增量检测锚点
     frontmatter: {          // 如有
         title: "核心架构设计"
         tags: ["架构"]
@@ -127,10 +129,18 @@ FileInfo {
 ```go
 type Page struct {
     // ... 已有字段
-    Abstract  string   // 新增: 50-100 token 摘要
-    Keywords  []string // 新增: 3-10 个关键词
-    Category  string   // 已有: 分类
-    Language  string   // 新增: 检测到的语言 (cs/go/md/txt)
+    Abstract  string     // 新增: 50-100 token 摘要
+    Keywords  []string   // 新增: 3-10 个关键词
+    Entities  []Entity   // 新增: 提取的实体（Level 2 同轮产出，Level 3 直接复用）
+    LLMHash   string     // 新增: 生成摘要时的 content_hash 快照，增量检测用
+    Category  string     // 已有: 分类
+    Language  string     // 新增: 检测到的语言 (cs/go/md/txt)
+}
+
+type Entity struct {
+    Name string // "Singleton<T>"
+    Type string // class | interface | function | module | concept
+    Role string // defined | imports | implements | uses
 }
 ```
 
@@ -162,9 +172,10 @@ type Page struct {
     ▼
 ④ 后处理
     ├── 验证 JSON 完整性
+    ├── 敏感信息过滤（密钥 AK/SK/token/password 替换为 [REDACTED]）
     ├── 截断摘要 ≤ 100 token
     ├── 去重关键词
-    └── 写入 Page.Abstract + Page.Keywords
+    └── 写入 Page.Abstract + Page.Keywords + Page.Entities + Page.LLMHash
 ```
 
 ### Prompt 模板
@@ -172,10 +183,23 @@ type Page struct {
 **代码文件（Remote）：**
 
 ```text
-你是代码分析师。阅读以下 {{语言}} 代码，输出 JSON：
+你是代码分析师。阅读以下 {{语言}} 代码。
+
+请按以下优先级理解：
+1. 这个文件定义了哪个核心类型（类/接口/模块/函数）？
+2. 这个类型的主要职责是什么？
+3. 它公开了哪些关键方法或 API？
+4. 它依赖了哪些外部模块或类型？
+
+如果文件是工具/辅助类（没有核心类型），重点概括功能范围而非实现细节。
+
+输出 JSON：
 {
-  "summary": "50-100 token 中文摘要，概括这个文件的职责和核心逻辑",
-  "keywords": ["3-10 个中文关键词"]
+  "summary": "50-100 token {{语言}}摘要，概括这个文件的职责和核心逻辑",
+  "keywords": ["3-10 个{{语言}}关键词"],
+  "entities": [
+    {"name": "实体名", "type": "class|interface|function|module|concept", "role": "defined|imports|implements|uses"}
+  ]
 }
 
 代码文件: {{路径}}
@@ -195,8 +219,11 @@ type Page struct {
 
 最后输出 JSON:
 {
-  "summary": "50-100 字总结",
-  "keywords": ["关键词1", "关键词2", ...]
+  "summary": "50-100 {{语言}}总结",
+  "keywords": ["关键词1", "关键词2"],
+  "entities": [
+    {"name": "实体名", "type": "class", "role": "defined"}
+  ]
 }
 
 代码文件: {{路径}}
@@ -207,10 +234,13 @@ type Page struct {
 **文档文件（.md）：**
 
 ```text
-你是文档分析师。阅读以下 Markdown 文档，输出 JSON：
+你是文档分析师。阅读以下 {{语言}} Markdown 文档，输出 JSON：
 {
-  "summary": "50-100 token 中文摘要，概括文档核心内容",
-  "keywords": ["3-10 个中文关键词"]
+  "summary": "50-100 token {{语言}}摘要，概括文档核心内容",
+  "keywords": ["3-10 个{{语言}}关键词"],
+  "entities": [
+    {"name": "核心实体名", "type": "concept", "role": "defined"}
+  ]
 }
 
 文档路径: {{路径}}
@@ -228,7 +258,9 @@ type Page struct {
 └── 进度报告: "已处理: 342/1000"
 
 场景 B: 增量更新（变更 5 个文件）
-├── 只处理变更文件
+├── 对比文件当前 content_hash 与 Page.LLMHash
+├── hash 一致 → 跳过（无需调用 LLM）
+├── hash 不一致 → 只处理变更文件
 ├── 从 meta 读取已有结果，合并
 └── 用户无感知
 ```
@@ -237,7 +269,10 @@ type Page struct {
 
 - **LLM 返回格式错误** — 重试 1 次，失败则跳过该页（记录告警）
 - **文件内容为空** — 跳过，不调用 LLM
-- **文件 > 1MB（代码）** — 截断后 500KB，LLM 看尾部（关键信息通常在最后）
+- **文件超过截断上限** — 按文件类型区分策略：
+  - 代码文件 (.cs/.go/.py/.js) — 取前 500KB（类定义/接口/命名空间在头部）
+  - 文档文件 (.md/.mdx) — 取前 400KB + 尾 100KB（引言和结论在首尾）
+  - 配置文件 (.json/.yaml) — 取前 500KB
 - **LLM 超时** — 跳过该页，记录日志，继续下一页
 - **网络中断（Remote）** — 指数退避重试，3 次失败后标记为"待补"
 
@@ -246,6 +281,18 @@ type Page struct {
 ## Level 3 详细设计 — 知识图谱流水线
 
 ### Level 3 核心目标
+
+跨页面建立关系，生成架构图、依赖分析、交叉引用、知识图谱。
+
+### 增量更新策略
+
+Level 3 的增量比 Level 2 复杂，因为一个文件的变更可能影响已有关系。分三种情况：
+
+- **新增文件** — 跑 Level 2（含实体）→ 全局实体集合并 → 只对新实体的关系做第二轮分析
+- **修改文件** — 重跑 Level 2 → 全局实体集更新 → 只对涉及变更实体的关系重做第二轮
+- **删除文件** — 从全局实体集移除 → 移除涉及的关系 → 更新图谱
+
+核心原则：谁变了就只重算谁，不因一个文件变化而重跑整个图谱。
 
 ### 两轮架构
 
@@ -425,6 +472,8 @@ graph LR
   ]
 }
 ```
+
+> **注意：** Level 3 实现时，应同步新增 MCP 工具 `wiki_graph`，支持 entities / relations / path / layers 四种查询操作，让 Agent 可以直接通过 MCP 查询知识图谱，而非手动解析 JSON 文件。
 
 ### Remote vs Local 差异
 
