@@ -11,6 +11,7 @@ import (
 	"github.com/kuaizhongqiang/baize-wiki/internal/config"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/catalog"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/generator"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/graph"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/linker"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
@@ -26,7 +27,7 @@ func NewBuildCmd() *cobra.Command {
 	var output string
 	var level int
 	var catalogLevel int
-	var draft, quiet, scanAll bool
+	var draft, quiet, scanAll, incremental bool
 
 	cmd := &cobra.Command{
 		Use:   "build [source]",
@@ -49,7 +50,7 @@ func NewBuildCmd() *cobra.Command {
 			configPath, _ := cmd.Flags().GetString("config")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 
-			result := RunBuildWithOpts(context.Background(), source, output, configPath, level, draft, quiet, scanAll, catalogLevel)
+			result := RunBuildWithOpts(context.Background(), source, output, configPath, level, draft, quiet, scanAll, catalogLevel, incremental)
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")
@@ -77,6 +78,7 @@ func NewBuildCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&draft, "draft", false, "Include pages marked as draft")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode (errors and summary only)")
 	cmd.Flags().BoolVar(&scanAll, "scan-all", false, "Scan all text files, not just .md/.mdx")
+	cmd.Flags().BoolVar(&incremental, "incremental", false, "Only process changed files (using content_hash)")
 
 	return cmd
 }
@@ -100,11 +102,11 @@ type Summary struct {
 
 // RunBuild executes the full build pipeline (backward compatible wrapper).
 func RunBuild(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) BuildResult {
-	return RunBuildWithOpts(ctx, source, output, configPath, level, draft, quiet, scanAll, 0)
+	return RunBuildWithOpts(ctx, source, output, configPath, level, draft, quiet, scanAll, 0, false)
 }
 
-// RunBuildWithOpts executes the full build pipeline with cataloging support.
-func RunBuildWithOpts(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool, catalogLevel int) BuildResult {
+// RunBuildWithOpts executes the full build pipeline with cataloging and incremental support.
+func RunBuildWithOpts(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool, catalogLevel int, incremental bool) BuildResult {
 	start := time.Now()
 	result := BuildResult{}
 
@@ -210,9 +212,11 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 		summarizer := catalog.NewSummarizer(catCfg)
 
 		cataloged := 0
+		skipped := 0
 		for _, page := range pages {
 			currentHash := catalog.ContentHash(page.Content)
-			if page.Abstract != "" && page.LLMHash == currentHash {
+			if incremental && page.LLMHash == currentHash && page.Abstract != "" {
+				skipped++
 				continue
 			}
 			page.LLMHash = currentHash
@@ -234,6 +238,20 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 
 		if !quiet {
 			fmt.Fprintf(os.Stderr, "catalog done: %d/%d pages\n", cataloged, len(pages))
+		}
+	}
+
+	// 3.8 Build knowledge graph (Level 3)
+	if len(pages) > 0 {
+		g := graph.BuildGraph(pages)
+		if err := graph.SaveGraph(g, absOutput); err != nil {
+			result.Warnings = append(result.Warnings, "graph save: "+err.Error())
+			if !quiet {
+				fmt.Fprintf(os.Stderr, "⚠ 知识图谱保存失败: %v\n", err)
+			}
+		} else if !quiet {
+			fmt.Fprintf(os.Stderr, "✓ 知识图谱构建完成: %d 节点, %d 关系\n",
+				len(g.Nodes), len(g.Edges))
 		}
 	}
 

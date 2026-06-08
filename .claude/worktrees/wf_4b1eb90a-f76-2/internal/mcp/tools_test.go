@@ -262,7 +262,7 @@ func TestRegisterAllTools(t *testing.T) {
 	srv := NewServer(newTestTransport(""))
 	RegisterAllTools(srv, wikiDir, mockBuildFn)
 
-	assert.Len(t, srv.tools, 7)
+	assert.Len(t, srv.tools, 6)
 	assert.Contains(t, srv.tools, "wiki_build")
 	assert.Contains(t, srv.tools, "wiki_read")
 	assert.Contains(t, srv.tools, "wiki_list")

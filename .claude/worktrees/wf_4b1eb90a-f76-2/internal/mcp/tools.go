@@ -14,7 +14,6 @@ import (
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/storage"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/vector"
-	"github.com/kuaizhongqiang/baize-wiki/internal/core/graph"
 )
 
 // RunBuildFunc is the signature of the Wiki build function provided by the app layer.
@@ -695,66 +694,6 @@ func semanticSearch(ctx context.Context, wikiDir, query string, opts index.Searc
 }
 
 // RegisterAllTools registers all 6 MCP tools on the server.
-
-
-// graphParams defines the parameters for wiki_graph.
-type graphParams struct {
-	Operation string `json:"operation"`
-	Entity    string `json:"entity"`
-}
-
-// toolWikiGraph handles wiki_graph: queries the knowledge graph.
-func toolWikiGraph(wikiDir string) ToolHandler {
-	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
-		var p graphParams
-		if params != nil {
-			if err := json.Unmarshal(params, &p); err != nil {
-				return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params: " + err.Error()}
-			}
-		}
-
-		g, err := graph.LoadGraph(wikiDir)
-		if err != nil {
-			return NewMCPErrorResult(`{"code":"ERR_GRAPH_NOT_FOUND","message":"graph not found, build wiki first"}`), nil
-		}
-
-		switch p.Operation {
-		case "entities":
-			data, _ := json.Marshal(map[string]any{
-				"total": len(g.Nodes),
-				"nodes": g.Nodes,
-			})
-			return NewMCPToolResult(string(data)), nil
-
-		case "relations":
-			edges := g.Edges
-			if p.Entity != "" {
-				filtered := make([]graph.GraphEdge, 0)
-				for _, e := range edges {
-					if e.Source == p.Entity || e.Target == p.Entity {
-						filtered = append(filtered, e)
-					}
-				}
-				edges = filtered
-			}
-			data, _ := json.Marshal(map[string]any{
-				"total": len(edges),
-				"edges": edges,
-			})
-			return NewMCPToolResult(string(data)), nil
-
-		case "layers":
-			data, _ := json.Marshal(map[string]any{
-				"total":  len(g.Layers),
-				"layers": g.Layers,
-			})
-			return NewMCPToolResult(string(data)), nil
-
-		default:
-			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "unknown operation: " + p.Operation + " (use entities|relations|layers)"}
-		}
-	}
-}
 func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 	srv.RegisterTool(MCPToolDefinition{
 		Name:        "wiki_build",
@@ -841,18 +780,6 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 			Required: []string{"query"},
 		},
 	}, toolWikiSearch(wikiDir))
-	srv.RegisterTool(MCPToolDefinition{
-		Name:        "wiki_graph",
-		Description: "Query the knowledge graph of the Wiki. Supports entities (all pages), relations (dependencies between pages), and layers (architectural groupings).",
-		InputSchema: InputSchema{
-			Type: "object",
-			Properties: map[string]PropertySchema{
-				"operation": {Type: "string", Description: "Query type: entities | relations | layers", Enum: []string{"entities", "relations", "layers"}},
-				"entity":    {Type: "string", Description: "Entity name to filter relations (only used with operation=relations)"},
-			},
-			Required: []string{"operation"},
-		},
-	}, toolWikiGraph(wikiDir))
 }
 
 // secureJoin joins a base directory with a user-supplied path and ensures
