@@ -1,0 +1,37 @@
+{
+  "id": "",
+  "name": "Test Wiki",
+  "source_path": "F:\\Project\\Baize_Wiki\\testdata\\large-project",
+  "output_path": "F:\\Project\\Baize_Wiki\\wiki-test",
+  "config": {
+    "name": "Test Wiki",
+    "scan": {
+      "paths": [
+        "./"
+      ],
+      "exclude": null,
+      "max_size": 10485760
+    },
+    "output": {
+      "dir": "./wiki-test",
+      "level": 3,
+      "clean": false
+    },
+    "organize": {
+      "by": "directory"
+    },
+    "features": {
+      "draft": false,
+      "scan_all": false,
+      "vector": false
+    },
+    "vector": {
+      "mode": "local",
+      "hybrid_weight": 0.5
+    }
+  },
+  "page_count": 1000,
+  "created_at": "2026-06-08T12:40:28.251009+08:00",
+  "updated_at": "2026-06-08T12:40:28.251009+08:00",
+  "version": 1
+}

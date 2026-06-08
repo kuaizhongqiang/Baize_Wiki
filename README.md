@@ -161,8 +161,10 @@ Baize Wiki 提供三层递进搜索：
 | [CLI 规范](docs/cli-spec.md) | 命令定义、参数、退出码、JSON 输出格式 |
 | [MCP 规范](docs/mcp-spec.md) | MCP 工具定义、JSON-RPC 协议细节 |
 | [Beta 路线图](docs/beta-roadmap.md) | Beta 方向框架（D 方向为当前焦点） |
+| [实施计划](docs/implementation-plan.md) | 当前实施步骤与优先级 |
 | [D 方向详细设计](docs/directions/d-ai-enhancement.md) | AI 增强与 Token 优化：三层递归输出流水线 |
-| [Phase 1-5 计划](docs/phase-1-plan.md) | v0.1.0-alpha 各 Phase 实施记录 |
+| [测试方案](docs/test-plan.md) | 全链路测试方案 |
+| [Phase 1-5 计划](docs/archive/phase-1-plan.md) | v0.1.0-alpha 各 Phase 实施记录（归档） |
 
 ---
 
