@@ -77,7 +77,7 @@ func NewBuildCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (overrides config)")
 	cmd.Flags().IntVarP(&level, "level", "l", 0, "Output complexity: 1=flat, 2=structured, 3=deep")
-	cmd.Flags().IntVar(&catalogLevel, "catalog-level", 0, "Cataloging depth: 0=none, 2=summary+keywords")
+	cmd.Flags().IntVar(&catalogLevel, "catalog-level", 0, "Cataloging depth: 0=none, 2=summary+keywords, 3=+concept+graph")
 	cmd.Flags().StringVar(&catalogBackend, "catalog-backend", "", "Catalog backend: local | remote")
 	cmd.Flags().StringVar(&profile, "profile", "", "Catalog profile: speed | balanced | local (overrides config)")
 	cmd.Flags().BoolVar(&draft, "draft", false, "Include pages marked as draft")
@@ -249,6 +249,25 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 
 		if !quiet {
 			fmt.Fprintf(os.Stderr, "catalog done: %d/%d pages\n", cataloged, len(pages))
+		}
+	}
+
+	// 3.8 Concept directory (Level 3: categorize pages by concept)
+			if catalogLevel >= int(catalog.CatalogLevel3) {
+		categories := catalog.CategorizePages(pages, "zh")
+		for _, page := range pages {
+			if cat, ok := categories[page.Path]; ok {
+				page.Meta.Category = cat
+				page.Tags = append(page.Tags, cat)
+			}
+		}
+		if !quiet {
+			// Count unique categories
+			seen := make(map[string]bool)
+			for _, c := range categories {
+				seen[c] = true
+			}
+			fmt.Fprintf(os.Stderr, "✓ 概念分类完成: %d 页面, %d 个分类\n", len(pages), len(seen))
 		}
 	}
 

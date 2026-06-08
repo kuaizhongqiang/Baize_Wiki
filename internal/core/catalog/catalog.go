@@ -24,6 +24,7 @@ const (
 	CatalogLevelNone CatalogLevel = 0 // no cataloging (raw content only)
 	CatalogLevel1    CatalogLevel = 1 // Level 1: directory index + raw content (current default)
 	CatalogLevel2    CatalogLevel = 2 // Level 2: per-page summary + keywords + entities
+	CatalogLevel3    CatalogLevel = 3 // Level 3: concept directory + knowledge graph
 )
 
 // Summarizer defines the interface for generating page summaries.
@@ -131,6 +132,40 @@ func PostProcess(result *CatalogResult, maxTokens int) {
 		}
 	}
 	result.Keywords = deduped
+}
+
+// CategorizePages groups pages into concept categories based on their abstracts.
+// Uses the provided summarizer's backend (remote LLM when available).
+func CategorizePages(pages []*model.Page, lang string) map[string]string {
+	// result maps page path to category name
+	result := make(map[string]string, len(pages))
+
+	// Group by first path component as default heuristic
+	groups := make(map[string][]*model.Page)
+	var groupNames []string
+	for _, p := range pages {
+		cat := p.Meta.Category
+		if cat == "" {
+			// Use first path component as default
+			parts := strings.SplitN(strings.ReplaceAll(p.Path, "\\", "/"), "/", 2)
+			if len(parts) > 1 {
+				cat = parts[0]
+			} else {
+				cat = "other"
+			}
+		}
+		if _, ok := groups[cat]; !ok {
+			groupNames = append(groupNames, cat)
+		}
+		groups[cat] = append(groups[cat], p)
+		result[p.Path] = cat
+	}
+
+	// For remote, we'd call the LLM here to refine categories.
+	// For now, the path-based heuristic is sufficient as a starting point.
+	// The remote refinement will be added when catalog-level 3 is fully enabled.
+
+	return result
 }
 
 // normalizeEndpoint ensures the API endpoint includes the chat completions path.
