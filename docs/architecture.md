@@ -1,7 +1,7 @@
 # Baize Wiki — 架构设计文档
 
-> 版本: v1 (草案)
-> 状态: 待审计
+> 版本: v2
+> 状态: 已完成 v0.1.0-alpha，规划 Beta 路线图
 
 ## 1. 产品定位
 
@@ -78,61 +78,38 @@ baize-wiki/
 │   │   ├── build.go             #   wiki build usecase
 │   │   ├── search.go            #   wiki search usecase
 │   │   ├── serve.go             #   mcp serve usecase
-│   │   └── manage.go            #   CRUD operations
+│   │   ├── init.go              #   baize.yaml 初始化
+│   │   ├── info.go              #   wiki 信息查询
+│   │   └── mcp.go               #   MCP 模式入口
 │   │
 │   ├── core/                    # 核心域：领域逻辑
 │   │   ├── scanner/             #  文件扫描器
-│   │   │   ├── scanner.go       #    目录递归扫描
-│   │   │   ├── scanner_test.go
-│   │   │   └── rules.go         #    忽略规则 (.baizeignore)
 │   │   ├── parser/              #  文档解析器
-│   │   │   ├── parser.go        #    统一入口
-│   │   │   ├── markdown.go      #    Markdown 解析
-│   │   │   ├── frontmatter.go   #    YAML frontmatter 提取
-│   │   │   └── parser_test.go
 │   │   ├── linker/              #  交叉链接计算
-│   │   │   ├── linker.go        #    页面间链接分析
-│   │   │   └── linker_test.go
 │   │   ├── generator/           #  Wiki 生成器
-│   │   │   ├── generator.go     #    整体生成编排
-│   │   │   ├── tree.go          #    目录树构造
-│   │   │   ├── template.go      #    索引页模板
-│   │   │   └── generator_test.go
-│   │   ├── index/               #  全文搜索引擎
-│   │   │   ├── index.go         #    索引构建与查询
-│   │   │   └── index_test.go
+│   │   ├── index/               #  全文搜索引擎 (bleve)
 │   │   ├── storage/             #  持久化
-│   │   │   ├── writer.go        #    写入文件系统
-│   │   │   └── reader.go        #    从文件系统读取
-│   │   ├── model/               #  领域模型（纯数据结构）
-│   │   │   ├── page.go          #    Page, Section, Link
-│   │   │   ├── wiki.go          #    Wiki 元信息
-│   │   │   ├── config.go        #    配置结构
-│   │   │   └── errors.go        #    领域错误定义
-│   │   └── vector/              #  向量存储（占位，Phase 4）
-│   │       └── vector.go        #    接口定义
+│   │   ├── model/               #  领域模型 (纯数据结构)
+│   │   └── vector/              #  向量存储 + 混合检索
 │   │
 │   ├── mcp/                     # MCP 协议实现
 │   │   ├── server.go            #    MCP Server 主循环
-│   │   ├── tools.go             #    工具定义 & 路由
+│   │   ├── tools.go             #    工具定义 & 路由 (6 工具)
 │   │   ├── protocol.go          #    JSON-RPC 消息类型
-│   │   └── transport.go         #    stdio / HTTP 传输
+│   │   └── transport.go         #    stdio / TCP 传输
 │   │
 │   └── config/                  # 配置加载
 │       └── config.go            #    读取 `baize.yaml`
 │
 ├── pkg/
 │   └── baize/                   # 公开库 API（供 Go 程序嵌入）
-│       ├── wiki.go              #    Wiki 类型
-│       ├── options.go           #    构建选项
-│       └── errors.go            #    公开错误
 │
-├── go.mod
-├── go.sum
+├── go.mod / go.sum
 ├── Makefile
-├── Dockerfile                   # Phase 2
-├── .baizeignore                 # 扫描忽略规则
-└── baize.yaml                   # 项目默认配置示例
+├── .goreleaser.yaml
+├── .github/workflows/ci.yml
+├── .baizeignore
+└── baize.yaml
 ```
 
 ---
@@ -200,7 +177,7 @@ wiki/
 ```
 
 - 最大深度 3 层
-- 源文件中的子节（sub-section）可独立成页（Phase 2+）
+- 源文件中的子节（sub-section）可独立成页
 
 ### 实现策略
 
@@ -282,7 +259,7 @@ Markdown 解析 (frontmatter + 内容)
 
 默认只扫描 `**/*.md` 和 `**/*.mdx`，避免将 `go.mod`、`vendor/`、`node_modules/` 等非文档文件混入 Wiki。
 
-### 5.2 全扫描模式 (`--scan-all`，Phase 2+)
+### 5.2 全扫描模式 (`--scan-all`)
 
 ```
 baize-wiki build --scan-all ./project
@@ -290,12 +267,12 @@ baize-wiki build --scan-all ./project
 
 启用全扫描后，行为回归"能扫尽扫"：
 - 所有非二进制文本文件都被纳入
-- 代码文件按纯文本读取（Phase 3 后支持注释提取）
+- 代码文件支持注释提取
 - 需配合 `.baizeignore` 排除 `vendor/`、`node_modules/` 等
 
 ### 5.3 二进制探测算法
 
-Phase 1 默认模式只扫 .md/.mdx，二进制探测作为安全检查。Phase 2+ 启用 --scan-all 后，其他文本文件类型识别规则逐步生效。
+Phase 1 默认模式只扫 .md/.mdx，二进制探测作为安全检查。`--scan-all` 启用后，其他文本文件类型识别规则逐步生效。
 
 ### 二进制探测算法
 
@@ -342,28 +319,40 @@ func isBinary(data []byte) bool {
 ```
 [Query] ──▶ Searcher ──▶ Index ──▶ [Results with snippets]
 ```
-> Phase 3 实现。
+> 已实现。详情见 [index/index.go](../internal/core/index/index.go)。
 
 ### 6.3 MCP 服务 (serve)
 
 ```
 [AI Agent] ◀──▶ stdio JSON-RPC ◀──▶ MCP Server ◀──▶ App Layer ◀──▶ Core Domain
 ```
-> Phase 2 实现。
+> 已实现。详情见 [mcp/](../internal/mcp/)。
 
 ---
 
 ## 7. 项目演进路线
 
-参见 [phase-1-plan.md](phase-1-plan.md) 详细实施计划。
+### v0.1.0-alpha — 已完成 (5 Phases)
 
-| Phase | 焦点 | 依赖 | 交付物 |
-|-------|------|------|--------|
-| **1** | CLI MVP: 扫描 → 解析 → 按 level 生成 Wiki | 无 | 单二进制，可生成结构化的 Wiki |
-| **2** | MCP Server + Docker | Phase 1 | AI Agent 可对话操作 Wiki |
-| **3** | 全文检索 + 代码注释提取 | Phase 1 | `wiki_search`，代码即文档 |
-| **4** | 向量化 + 语义搜索 | Phase 3 | 混合检索能力 |
-| **5** | 交叉链接 + 生态集成 | Phase 1 | `[[wiki-link]]` 解析，多框架适配 |
+| Phase | 焦点 | 状态 |
+|-------|------|:----:|
+| **1** | CLI MVP: 扫描 → 解析 → 按 level 生成 Wiki | ✅ |
+| **2** | MCP Server (stdio/TCP, 6 tools) | ✅ |
+| **3** | 全文检索 (bleve) + 代码注释提取 | ✅ |
+| **4** | 向量化 + 语义搜索 (Hybrid BM25/向量) | ✅ |
+| **5** | `[[wiki-link]]` 交叉链接 + 反向链接 | ✅ |
+
+### Beta — 规划中
+
+参见 [beta-roadmap.md](beta-roadmap.md) 框架路线图。
+
+| 方向 | 焦点 | 状态 |
+|------|------|:----:|
+| **A** | Watch 模式 + 增量构建 | 📋 待定 |
+| **C** | 模板系统 + 主题定制 | 📋 待定 |
+| **D** | AI 增强与 Token 优化 | 🔜 当前焦点 |
+| **E** | 插件系统 | 📋 待定 |
+| **F** | 导入/导出/生态集成 | 🔍 待研究 |
 
 ---
 
@@ -378,7 +367,7 @@ func isBinary(data []byte) bool {
 | YAML 解析 | gopkg.in/yaml.v3 | 标准选择，frontmatter 解析需要 |
 | 二进制探测 | 标准库 utf8.Valid | 零依赖，轻量可靠 |
 | MCP 协议 | 自实现（基于 JSON-RPC） | 协议简单，需要完全控制 |
-| 全文索引 | bleve（Phase 3） | Go 原生全文搜索引擎 |
+| 全文索引 | bleve | Go 原生全文搜索引擎 |
 | 测试 | 标准 testing + testify | 社区标准 |
 | 构建 | Makefile + goreleaser | 自动化构建、发布 |
 
