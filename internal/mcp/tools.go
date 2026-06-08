@@ -19,17 +19,18 @@ import (
 // RunBuildFunc is the signature of the Wiki build function provided by the app layer.
 // Returns (success, durationMs, pages, directories, errors).
 // It must be injected to avoid an import cycle (mcp → app → mcp).
-type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) (success bool, durationMs int64, pages int, directories int, errs []string)
+type RunBuildFunc func(ctx context.Context, source, output, configPath string, level int, catalogLevel int, draft, quiet, scanAll bool) (success bool, durationMs int64, pages int, directories int, errs []string)
 
 // toolWikiBuild handles wiki_build: builds or updates a Wiki from source.
 func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
 		var p struct {
-			Source  string `json:"source"`
-			Output  string `json:"output"`
-			Config  string `json:"config"`
-			Level   int    `json:"level"`
-			ScanAll bool   `json:"scan_all"`
+			Source       string `json:"source"`
+			Output       string `json:"output"`
+			Config       string `json:"config"`
+			Level        int    `json:"level"`
+			CatalogLevel int    `json:"catalog_level"`
+			ScanAll      bool   `json:"scan_all"`
 		}
 		if params != nil {
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -37,7 +38,7 @@ func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 			}
 		}
 
-		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, false, false, p.ScanAll)
+		success, durationMs, pages, dirs, errs := buildFn(ctx, p.Source, p.Output, p.Config, p.Level, p.CatalogLevel, false, false, p.ScanAll)
 		if !success {
 			errMsg := "build failed"
 			if len(errs) > 0 {
@@ -592,6 +593,7 @@ func toolWikiSearch(wikiDir string) ToolHandler {
 			Tags           []string `json:"tags"`
 			Limit          int      `json:"limit"`
 			IncludeContent bool     `json:"include_content"`
+			MaxTokens      int      `json:"max_tokens"`
 			Semantic       bool     `json:"semantic"`
 			Weight         float64  `json:"weight"`
 		}
@@ -611,6 +613,7 @@ func toolWikiSearch(wikiDir string) ToolHandler {
 		opts := index.SearchOpts{
 			Limit:       p.Limit,
 			WithContent: p.IncludeContent,
+			MaxTokens:   p.MaxTokens,
 		}
 		if len(p.Tags) > 0 {
 			opts.Tags = p.Tags
@@ -698,11 +701,12 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]PropertySchema{
-				"source":   {Type: "string", Description: "Source file or directory path"},
-				"output":   {Type: "string", Description: "Wiki output directory"},
-				"config":   {Type: "string", Description: "Config file path (default ./baize.yaml)"},
-				"level":    {Type: "integer", Description: "Output complexity: 1 | 2 | 3"},
-				"scan_all": {Type: "boolean", Description: "Scan all text files, not just .md/.mdx"},
+				"source":       {Type: "string", Description: "Source file or directory path"},
+				"output":       {Type: "string", Description: "Wiki output directory"},
+				"config":       {Type: "string", Description: "Config file path (default ./baize.yaml)"},
+				"level":        {Type: "integer", Description: "Output complexity: 1 | 2 | 3"},
+				"catalog_level": {Type: "integer", Description: "Cataloging depth: 0=none, 2=summary+keywords", Default: 0},
+				"scan_all":     {Type: "boolean", Description: "Scan all text files, not just .md/.mdx"},
 			},
 		},
 	}, toolWikiBuild(buildFn))
@@ -769,6 +773,7 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 				"tags":            {Type: "array", Description: "Filter by tags", Items: &ItemsSchema{Type: "string"}},
 				"limit":           {Type: "integer", Description: "Max results (default 10)"},
 				"include_content": {Type: "boolean", Description: "Include full content (default false)"},
+				"max_tokens":    {Type: "integer", Description: "Approximate token limit for each result snippet"},
 				"semantic":        {Type: "boolean", Description: "Enable hybrid BM25+vector semantic search (default false)"},
 				"weight":          {Type: "number", Description: "BM25 weight α for hybrid search (0.0-1.0, default 0.5)"},
 			},

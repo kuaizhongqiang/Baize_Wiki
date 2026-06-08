@@ -136,3 +136,55 @@ func TestFrontmatterCustomFields(t *testing.T) {
 	assert.Equal(t, 2, fm.Custom["version"])
 	assert.Equal(t, "active", fm.Custom["status"])
 }
+
+func TestComputeContentHash(t *testing.T) {
+	h1 := ComputeContentHash("hello world")
+	h2 := ComputeContentHash("hello world")
+	h3 := ComputeContentHash("hello world!")
+
+	// Same content produces same hash
+	assert.Equal(t, h1, h2)
+
+	// Different content produces different hash
+	assert.NotEqual(t, h1, h3)
+
+	// Hash is non-empty hex string
+	assert.Len(t, h1, 64) // SHA256 hex = 64 chars
+}
+
+func TestPageLevel2Fields(t *testing.T) {
+	p := &Page{
+		ID:       "page_test",
+		Path:     "guide/getting-started.md",
+		Title:    "Getting Started",
+		Content:  "Full content here...",
+		Abstract: "This guide covers installation and basic usage.",
+		Keywords: []string{"installation", "usage", "quickstart"},
+		Entities: []Entity{
+			{Name: "Config", Type: "class", Role: "defined"},
+			{Name: "Logger", Type: "class", Role: "uses"},
+		},
+		LLMHash: ComputeContentHash("Full content here..."),
+	}
+
+	assert.Equal(t, "This guide covers installation and basic usage.", p.Abstract)
+	assert.Contains(t, p.Keywords, "installation")
+	assert.Len(t, p.Entities, 2)
+	assert.Equal(t, "Config", p.Entities[0].Name)
+	assert.NotEmpty(t, p.LLMHash)
+
+	// Verify that changing content changes LLMHash
+	p2 := &Page{Content: "Different content"}
+	assert.NotEqual(t, p.LLMHash, ComputeContentHash(p2.Content))
+}
+
+func TestEntityStruct(t *testing.T) {
+	e := Entity{
+		Name: "Singleton<T>",
+		Type: "class",
+		Role: "defined",
+	}
+	assert.Equal(t, "Singleton<T>", e.Name)
+	assert.Equal(t, "class", e.Type)
+	assert.Equal(t, "defined", e.Role)
+}

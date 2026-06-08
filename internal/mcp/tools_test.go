@@ -14,11 +14,11 @@ import (
 )
 
 // mockBuildFn simulates a successful Wiki build without importing app.
-var mockBuildFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) (bool, int64, int, int, []string) {
+var mockBuildFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, catalogLevel int, draft, quiet, scanAll bool) (bool, int64, int, int, []string) {
 	return true, 100, 1, 1, nil
 }
 
-var mockBuildFailFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) (bool, int64, int, int, []string) {
+var mockBuildFailFn RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, catalogLevel int, draft, quiet, scanAll bool) (bool, int64, int, int, []string) {
 	return false, 0, 0, 0, []string{"source not found"}
 }
 

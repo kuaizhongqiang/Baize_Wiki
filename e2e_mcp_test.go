@@ -16,7 +16,7 @@ import (
 )
 
 // e2eMockBuild is a stub build function for E2E MCP tests.
-var e2eMockBuild mcp.RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) (bool, int64, int, int, []string) {
+var e2eMockBuild mcp.RunBuildFunc = func(ctx context.Context, source, output, configPath string, level int, catalogLevel int, draft, quiet, scanAll bool) (bool, int64, int, int, []string) {
 	return true, 100, 1, 1, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
@@ -18,7 +19,8 @@ type SearchResult struct {
 	Path    string   `json:"path"`
 	Title   string   `json:"title"`
 	Score   float64  `json:"score"`
-	Snippet string   `json:"snippet"`
+	Snippet string   `json:"snippet"`  // smart snippet around matched terms
+	Section string   `json:"section"` // heading under which the hit was found
 	Tags    []string `json:"tags"`
 }
 
@@ -27,6 +29,7 @@ type SearchOpts struct {
 	Tags        []string // filter by tags (AND)
 	Limit       int      // max results (default 10)
 	WithContent bool     // return full content
+	MaxTokens   int      // approximate token limit for content/snippet
 }
 
 // Index wraps a bleve index for full-text search over Wiki pages.
@@ -152,10 +155,69 @@ func (idx *Index) Search(ctx context.Context, q string, opts SearchOpts) ([]Sear
 			sr.Snippet = snippet
 		}
 
-		results = append(results, sr)
+		// Apply token limit
+	if opts.MaxTokens > 0 {
+		maxChars := opts.MaxTokens * 3
+		if len(sr.Snippet) > maxChars {
+			sr.Snippet = sr.Snippet[:maxChars]
+		}
 	}
 
-	return results, nil
+	results = append(results, sr)
+}
+
+// WithContent returns full content instead of snippet
+if opts.WithContent {
+	for i, hit := range result.Hits {
+		content := fieldStr(hit.Fields, "content")
+		if content != "" {
+			if opts.MaxTokens > 0 {
+				maxChars := opts.MaxTokens * 3
+				if len(content) > maxChars {
+					content = content[:maxChars]
+				}
+			}
+			results[i].Snippet = content
+		}
+	}
+}
+
+return results, nil
+}
+
+// findSectionForHit finds the markdown heading under which a highlighted snippet occurs.
+func findSectionForHit(content, snippet string) string {
+	if content == "" || snippet == "" {
+		return ""
+	}
+	snipPos := strings.Index(content, snippet)
+	if snipPos < 0 {
+		words := strings.Fields(snippet)
+		if len(words) > 3 {
+			snipPos = strings.Index(content, words[0]+" "+words[1]+" "+words[2])
+		}
+		if snipPos < 0 {
+			return ""
+		}
+	}
+
+	// Walk backwards from the snippet position looking for the nearest heading
+	before := content[:snipPos]
+	lines := strings.Split(before, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" || trimmed[0] != '#' {
+			continue
+		}
+		level := 0
+		for level < len(trimmed) && trimmed[level] == '#' {
+			level++
+		}
+		if level <= 6 && level < len(trimmed) && trimmed[level] == ' ' {
+			return strings.TrimSpace(trimmed[level+1:])
+		}
+	}
+	return ""
 }
 
 // Close closes the index and releases resources.
