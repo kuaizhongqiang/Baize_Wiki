@@ -1,0 +1,10 @@
+.git/
+.gitignore
+.claude/
+*.md~
+node_modules/
+__pycache__/
+*.pyc
+vendor/
+dist/
+bin/

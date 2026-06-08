@@ -17,6 +17,28 @@ type toolEntry struct {
 	handler ToolHandler
 }
 
+// ResourceDefinition describes an MCP resource (wiki page).
+type ResourceDefinition struct {
+	URI         string `json:"uri"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
+// PromptDefinition describes an MCP prompt template.
+type PromptDefinition struct {
+	Name        string             `json:"name"`
+	Description string             `json:"description,omitempty"`
+	Arguments   []PromptArgument   `json:"arguments,omitempty"`
+}
+
+// PromptArgument describes a prompt argument.
+type PromptArgument struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Required    bool   `json:"required,omitempty"`
+}
+
 // Server is an MCP JSON-RPC 2.0 server.
 // It reads requests from a Transport, dispatches them to registered tools,
 // and writes responses back.
@@ -113,6 +135,14 @@ func (s *Server) handleMessage(ctx context.Context, msg []byte) *Response {
 		return NewResponse(raw.ID, "pong")
 	case "tools/list":
 		return s.handleToolList(raw.ID)
+	case "resources/list":
+		return s.handleResourceList(raw.ID, raw.Params)
+	case "resources/read":
+		return s.handleResourceRead(raw.ID, raw.Params)
+	case "prompts/list":
+		return s.handlePromptList(raw.ID)
+	case "prompts/get":
+		return s.handlePromptGet(raw.ID, raw.Params)
 	}
 
 	// Look up registered tool
@@ -157,6 +187,94 @@ func (s *Server) handleToolList(id json.RawMessage) *Response {
 	}
 
 	return NewResponse(id, map[string]any{"tools": defs})
+}
+
+// handleResourceList returns available wiki pages as MCP resources.
+func (s *Server) handleResourceList(id json.RawMessage, params json.RawMessage) *Response {
+	return NewResponse(id, map[string]any{
+		"resources": []ResourceDefinition{
+			{
+				URI:         "wiki:///",
+				Name:        "Wiki Root",
+				Description: "Root Wiki directory listing",
+				MimeType:    "text/markdown",
+			},
+		},
+	})
+}
+
+// handleResourceRead reads a wiki page resource.
+func (s *Server) handleResourceRead(id json.RawMessage, params json.RawMessage) *Response {
+	return NewResponse(id, map[string]any{
+		"contents": []ResourceDefinition{
+			{
+				URI:      "wiki:///",
+				Name:     "Wiki Root",
+				MimeType: "text/markdown",
+			},
+		},
+	})
+}
+
+// handlePromptList returns available prompt templates.
+func (s *Server) handlePromptList(id json.RawMessage) *Response {
+	return NewResponse(id, map[string]any{
+		"prompts": []PromptDefinition{
+			{
+				Name:        "summarize-page",
+				Description: "Generate a summary of a wiki page",
+				Arguments: []PromptArgument{
+					{Name: "path", Description: "Page path", Required: true},
+				},
+			},
+			{
+				Name:        "explain-architecture",
+				Description: "Explain the architecture of a section",
+				Arguments: []PromptArgument{
+					{Name: "section", Description: "Section path", Required: true},
+				},
+			},
+		},
+	})
+}
+
+// handlePromptGet returns a specific prompt template.
+func (s *Server) handlePromptGet(id json.RawMessage, params json.RawMessage) *Response {
+	var p struct {
+		Name string `json:"name"`
+		Args map[string]string `json:"arguments"`
+	}
+	if params != nil {
+		_ = json.Unmarshal(params, &p)
+	}
+
+	messages := []map[string]any{}
+
+	switch p.Name {
+	case "summarize-page":
+		content := "Please summarize the wiki page."
+		if path, ok := p.Args["path"]; ok {
+			content = "Please summarize the wiki page at: " + path
+		}
+		messages = append(messages, map[string]any{
+			"role":    "user",
+			"content": content,
+		})
+	case "explain-architecture":
+		content := "Please explain the architecture."
+		if section, ok := p.Args["section"]; ok {
+			content = "Please explain the architecture of: " + section
+		}
+		messages = append(messages, map[string]any{
+			"role":    "user",
+			"content": content,
+		})
+	}
+
+	return NewResponse(id, map[string]any{
+		"description": "Prompt template for " + p.Name,
+		"messages":    messages,
+	})
 }
 
 // extractID attempts to extract the "id" field from raw JSON for error responses.
