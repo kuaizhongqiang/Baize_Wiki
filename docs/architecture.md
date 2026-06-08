@@ -346,13 +346,16 @@ func isBinary(data []byte) bool {
 
 参见 [beta-roadmap.md](beta-roadmap.md) 框架路线图。
 
-| 方向 | 焦点 | 状态 |
-|------|------|:----:|
-| **A** | Watch 模式 + 增量构建 | 📋 待定 |
-| **C** | 模板系统 + 主题定制 | 📋 待定 |
-| **D** | AI 增强与 Token 优化 | 🔜 当前焦点 |
-| **E** | 插件系统 | 📋 待定 |
-| **F** | 导入/导出/生态集成 | 🔍 待研究 |
+- **D** — AI 增强与 Token 优化（Level 1/2/3 全套） ✅ 已完成
+- **G1** — Dockerfile + Docker 集成测试 📋 待做
+- **G2** — 真实语义 Embedding API 📋 待做
+- **G3** — MCP Resources / Prompts 📋 待做
+- **G4** — 大项目性能优化（1000+ 文件） 📋 待做
+- **C** — 模板系统 + 主题定制 📋 待定
+- **E** — 插件系统 📋 待定
+- **F** — 导入/导出/生态集成 🔍 待研究
+
+> Watch 模式已移除（代码变更由 CodeGraph 负责）。
 
 ---
 
