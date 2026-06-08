@@ -5,7 +5,21 @@ import (
 	"hash/fnv"
 	"math"
 	"unicode"
+
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/model"
 )
+
+// NewEmbedder creates an Embedder based on config.
+func NewEmbedder(cfg model.VectorConfig) Embedder {
+	if cfg.Mode == "remote" && cfg.Endpoint != "" {
+		return NewRemoteEmbedder(RemoteEmbedderConfig{
+			Endpoint: cfg.Endpoint,
+			Model:    cfg.Model,
+			APIKey:   cfg.APIKey,
+		})
+	}
+	return NewLocalEmbedder(256)
+}
 
 // Embedder converts text into a fixed-dimension vector embedding.
 type Embedder interface {

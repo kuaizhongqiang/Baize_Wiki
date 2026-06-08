@@ -294,7 +294,7 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 
 	// 6. Build vector index (Phase 4, non-fatal on failure)
 	if cfg.Features.Vector {
-		embedder := vector.NewLocalEmbedder(256)
+		embedder := vector.NewEmbedder(cfg.Vector)
 		vecDir := filepath.Join(absOutput, ".baize", "vectors")
 		store := vector.NewMemoryStore(vecDir)
 

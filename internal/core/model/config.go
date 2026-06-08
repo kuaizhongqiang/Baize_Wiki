@@ -39,11 +39,12 @@ type FeatureConfig struct {
 
 // VectorConfig controls vector search (Phase 4+).
 type VectorConfig struct {
-	Mode         string  `yaml:"mode" json:"mode"`                   // local | api
+	Mode         string  `yaml:"mode" json:"mode"`                   // local | remote
 	HybridWeight float64 `yaml:"hybrid_weight" json:"hybrid_weight"` // BM25 weight α (0.0-1.0)
 	Provider     string  `yaml:"provider,omitempty" json:"provider,omitempty"`
-	APIKey       string  `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	Model        string  `yaml:"model,omitempty" json:"model,omitempty"`
+	Endpoint     string  `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`     // API endpoint (for remote mode)
+	APIKey       string  `yaml:"api_key,omitempty" json:"api_key,omitempty"`       // API key
+	Model        string  `yaml:"model,omitempty" json:"model,omitempty"`           // model name for remote API
 }
 
 // DefaultConfig returns a Config with sensible defaults.
