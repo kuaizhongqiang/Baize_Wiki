@@ -95,7 +95,7 @@ func RunSearch(ctx context.Context, wikiDir, queryStr string, opts index.SearchO
 		result.Results = []index.SearchResult{}
 		return result
 	}
-	defer idx.Close()
+	defer func() { _ = idx.Close() }()
 
 	results, err := idx.Search(ctx, queryStr, opts)
 	if err != nil {
