@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kuaizhongqiang/baize-wiki/internal/config"
@@ -27,6 +28,7 @@ func NewBuildCmd() *cobra.Command {
 	var output string
 	var level int
 	var catalogLevel int
+	var catalogBackend string
 	var profile string
 	var draft, quiet, scanAll, incremental bool
 
@@ -51,7 +53,7 @@ func NewBuildCmd() *cobra.Command {
 			configPath, _ := cmd.Flags().GetString("config")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 
-			result := RunBuildWithOpts(context.Background(), source, output, configPath, level, draft, quiet, scanAll, catalogLevel, incremental, profile)
+			result := RunBuildWithOpts(context.Background(), source, output, configPath, level, draft, quiet, scanAll, catalogLevel, incremental, profile, catalogBackend)
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")
@@ -76,6 +78,7 @@ func NewBuildCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (overrides config)")
 	cmd.Flags().IntVarP(&level, "level", "l", 0, "Output complexity: 1=flat, 2=structured, 3=deep")
 	cmd.Flags().IntVar(&catalogLevel, "catalog-level", 0, "Cataloging depth: 0=none, 2=summary+keywords")
+	cmd.Flags().StringVar(&catalogBackend, "catalog-backend", "", "Catalog backend: local | remote")
 	cmd.Flags().StringVar(&profile, "profile", "", "Catalog profile: speed | balanced | local (overrides config)")
 	cmd.Flags().BoolVar(&draft, "draft", false, "Include pages marked as draft")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode (errors and summary only)")
@@ -104,11 +107,11 @@ type Summary struct {
 
 // RunBuild executes the full build pipeline (backward compatible wrapper).
 func RunBuild(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) BuildResult {
-	return RunBuildWithOpts(ctx, source, output, configPath, level, draft, quiet, scanAll, 0, false, "")
+	return RunBuildWithOpts(ctx, source, output, configPath, level, draft, quiet, scanAll, 0, false, "", "")
 }
 
 // RunBuildWithOpts executes the full build pipeline with cataloging and incremental support.
-func RunBuildWithOpts(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool, catalogLevel int, incremental bool, profile string) BuildResult {
+func RunBuildWithOpts(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool, catalogLevel int, incremental bool, profile string, catalogBackend string) BuildResult {
 	start := time.Now()
 	result := BuildResult{}
 
@@ -121,6 +124,9 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 	cfg = cfg.Merge(level, output, scanAll)
 	if profile != "" {
 		cfg.Profile = profile
+	}
+	if catalogBackend != "" {
+		cfg.Catalog.Backend = catalogBackend
 	}
 	cfg.ApplyProfile()
 
@@ -243,6 +249,22 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 
 		if !quiet {
 			fmt.Fprintf(os.Stderr, "catalog done: %d/%d pages\n", cataloged, len(pages))
+		}
+	}
+
+	// 3.76 Inject metadata into page content
+	if catalogLevel >= int(catalog.CatalogLevel2) {
+		for _, page := range pages {
+			var meta_buf strings.Builder
+			if page.Abstract != "" {
+				meta_buf.WriteString("> **" + page.Abstract + "**\n\n")
+			}
+			if len(page.Keywords) > 0 {
+				meta_buf.WriteString("`" + strings.Join(page.Keywords, "` `") + "`\n\n")
+			}
+			if meta_buf.Len() > 0 {
+				page.Content = meta_buf.String() + page.Content
+			}
 		}
 	}
 

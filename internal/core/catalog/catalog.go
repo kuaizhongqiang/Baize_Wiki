@@ -86,7 +86,7 @@ func FromModelConfig(cfg model.CatalogConfig, level int) CatalogConfig {
 		Backend:   cfg.Backend,
 		Lang:      "zh",
 		MaxTokens: 100,
-		Endpoint:  cfg.Endpoint,
+		Endpoint:  normalizeEndpoint(cfg.Endpoint),
 		Model:     cfg.Model,
 		APIKey:    cfg.APIKey,
 	}
@@ -131,6 +131,17 @@ func PostProcess(result *CatalogResult, maxTokens int) {
 		}
 	}
 	result.Keywords = deduped
+}
+
+// normalizeEndpoint ensures the API endpoint includes the chat completions path.
+func normalizeEndpoint(endpoint string) string {
+	if endpoint == "" {
+		return endpoint
+	}
+	if !strings.HasSuffix(endpoint, "/chat/completions") {
+		endpoint = strings.TrimRight(endpoint, "/") + "/chat/completions"
+	}
+	return endpoint
 }
 
 // detectLanguage returns a file type label for LLM prompts.

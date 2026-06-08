@@ -22,7 +22,7 @@ func TestE2ECatalogLevel2Build(t *testing.T) {
 
 	_ = os.WriteFile(filepath.Join(srcDir, "baize.yaml"), []byte("name: test\noutput:\n  dir: "+outDir+"\n  level: 2\n"), 0644)
 
-	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, filepath.Join(srcDir, "baize.yaml"), 2, false, false, false, 2, false, "")
+	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, filepath.Join(srcDir, "baize.yaml"), 2, false, false, false, 2, false, "", "")
 
 	assert.True(t, result.Success)
 	assert.Greater(t, result.Summary.Pages, 0)
@@ -41,7 +41,7 @@ func TestE2ECatalogKnowledgeGraph(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "core", "a.md"), content1, 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "app", "b.md"), content2, 0644))
 
-	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, false, "")
+	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, false, "", "")
 	assert.True(t, result.Success)
 
 	// Verify graph.json exists
@@ -57,11 +57,11 @@ func TestE2ECatalogIncrementalBuild(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "page.md"), content, 0644))
 
 	// First build
-	result1 := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, false, "")
+	result1 := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, false, "", "")
 	assert.True(t, result1.Success)
 
 	// Incremental build with no changes
-	result2 := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, true, "")
+	result2 := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, true, "", "")
 	assert.True(t, result2.Success)
 
 	// Modify file
@@ -69,7 +69,7 @@ func TestE2ECatalogIncrementalBuild(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "page.md"), content2, 0644))
 
 	// Incremental build with changes
-	result3 := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, true, "")
+	result3 := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, true, "", "")
 	assert.True(t, result3.Success)
 }
 
@@ -86,7 +86,7 @@ func TestE2ECatalogLargeProject(t *testing.T) {
 		_ = os.WriteFile(filepath.Join(dir, "page-"+string(rune('0'+i))+".md"), content, 0644)
 	}
 
-	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, false, "")
+	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 2, false, "", "")
 	assert.True(t, result.Success)
 	assert.Greater(t, result.Summary.Pages, 0)
 }
@@ -98,7 +98,7 @@ func TestE2ECatalogWithScanAll(t *testing.T) {
 	codeContent := []byte("using System;\nnamespace Test { class Program { static void Main() {} } }")
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "program.cs"), codeContent, 0644))
 
-	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, true, 2, false, "")
+	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, true, 2, false, "", "")
 	assert.True(t, result.Success)
 	assert.Greater(t, result.Summary.Pages, 0)
 }
