@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
@@ -57,15 +58,32 @@ func toolWikiBuild(buildFn RunBuildFunc) ToolHandler {
 	}
 }
 
+// readParams defines the parameters for wiki_read.
+type readParams struct {
+	Path      string `json:"path"`
+	Depth     int    `json:"depth"`      // 0=headings only, 1=headings+abstracts, 2=full content
+	Section   string `json:"section"`    // section ID to target
+	MaxTokens int    `json:"max_tokens"` // approximate token limit
+}
+
+// sectionTreeNode is a lightweight section tree for depth=0 or depth=1 responses.
+type sectionTreeNode struct {
+	ID       string             `json:"id"`
+	Level    int                `json:"level"`
+	Title    string             `json:"title"`
+	Abstract string             `json:"abstract,omitempty"`
+	Children []sectionTreeNode   `json:"children,omitempty"`
+}
+
 // toolWikiRead handles wiki_read: reads a page from the Wiki directory.
+// Supports layered content delivery via depth, section targeting, and token budget.
 func toolWikiRead(wikiDir string) ToolHandler {
 	return func(ctx context.Context, params json.RawMessage) (any, *ErrorObj) {
-		var p struct {
-			Path   string `json:"path"`
-			Format string `json:"format"`
-		}
-		if err := json.Unmarshal(params, &p); err != nil {
-			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params"}
+		var p readParams
+		if params != nil {
+			if err := json.Unmarshal(params, &p); err != nil {
+				return nil, &ErrorObj{Code: ErrInvalidParams, Message: "invalid params: " + err.Error()}
+			}
 		}
 		if p.Path == "" {
 			return nil, &ErrorObj{Code: ErrInvalidParams, Message: "path is required"}
@@ -85,8 +103,256 @@ func toolWikiRead(wikiDir string) ToolHandler {
 			return nil, &ErrorObj{Code: ErrInternal, Message: err.Error()}
 		}
 
-		return NewMCPToolResult(string(data)), nil
+		content := string(data)
+		depth := p.Depth
+		if depth == 0 {
+			depth = 2 // default to full content
+		}
+
+		switch {
+		case p.Section != "":
+			// Section targeting: extract the specified section subtree
+			headings := parseHeadings(content)
+			tree := buildHeadingTree(headings)
+			section := findSection(tree, p.Section)
+			if section == nil {
+				return NewMCPErrorResult(`{"code":"ERR_SECTION_NOT_FOUND","message":"section not found: ` + p.Section + `"}`), nil
+			}
+			result := renderSectionContent(content, section, depth)
+			result = applyTokenLimit(result, p.MaxTokens)
+			return NewMCPToolResult(result), nil
+
+		case depth == 2:
+			// Full content (default behavior)
+			result := content
+			result = applyTokenLimit(result, p.MaxTokens)
+			return NewMCPToolResult(result), nil
+
+		default:
+			// Section tree (depth 0 or 1)
+			headings := parseHeadings(content)
+			tree := buildHeadingTree(headings)
+			result := renderSectionTree(tree, content, depth)
+			data, _ := json.Marshal(result)
+			jsonStr := string(data)
+			jsonStr = applyTokenLimit(jsonStr, p.MaxTokens)
+			return NewMCPToolResult(jsonStr), nil
+		}
 	}
+}
+
+// heading represents a single markdown heading.
+type heading struct {
+	Level int
+	Title string
+	ID    string
+	Line  int // line number in the original content
+}
+
+// parseHeadings extracts all headings from markdown content.
+func parseHeadings(content string) []heading {
+	lines := strings.Split(content, "\n")
+	var headings []heading
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || trimmed[0] != '#' {
+			continue
+		}
+		// Count heading level
+		level := 0
+		for level < len(trimmed) && trimmed[level] == '#' {
+			level++
+		}
+		if level > 6 || level >= len(trimmed) || trimmed[level] != ' ' {
+			continue
+		}
+		title := strings.TrimSpace(trimmed[level+1:])
+		title = strings.TrimRight(title, "# ")
+		title = strings.TrimSpace(title)
+		if title == "" {
+			continue
+		}
+		id := generateSectionID(title)
+		headings = append(headings, heading{
+			Level: level,
+			Title: title,
+			ID:    id,
+			Line:  i,
+		})
+	}
+	return headings
+}
+
+// buildHeadingTree converts a flat list of headings into a tree.
+func buildHeadingTree(headings []heading) []sectionTreeNode {
+	var result []sectionTreeNode
+	i := 0
+	for i < len(headings) {
+		h := headings[i]
+		i++
+
+		// Collect children (headings at deeper levels until same or shallower level)
+		childStart := i
+		for i < len(headings) && headings[i].Level > h.Level {
+			i++
+		}
+		var children []sectionTreeNode
+		if childStart < i {
+			children = buildHeadingTree(headings[childStart:i])
+		}
+
+		result = append(result, sectionTreeNode{
+			ID:       h.ID,
+			Level:    h.Level,
+			Title:    h.Title,
+			Children: children,
+		})
+	}
+	return result
+}
+
+// findSection finds a section by ID in the tree.
+func findSection(tree []sectionTreeNode, id string) *sectionTreeNode {
+	for i, node := range tree {
+		if node.ID == id {
+			return &tree[i]
+		}
+		if found := findSection(node.Children, id); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// renderSectionTree renders the section tree at the given depth.
+// depth=0: title only, depth=1: title+abstract.
+func renderSectionTree(tree []sectionTreeNode, content string, depth int) []sectionTreeNode {
+	result := make([]sectionTreeNode, len(tree))
+	for i, node := range tree {
+		result[i] = sectionTreeNode{
+			ID:    node.ID,
+			Level: node.Level,
+			Title: node.Title,
+		}
+		if depth >= 1 {
+			result[i].Abstract = extractSectionAbstract(content, node.Title)
+		}
+		if len(node.Children) > 0 {
+			result[i].Children = renderSectionTree(node.Children, content, depth)
+		}
+	}
+	return result
+}
+
+// extractSectionAbstract finds the first paragraph after a section heading.
+func extractSectionAbstract(content, sectionTitle string) string {
+	lines := strings.Split(content, "\n")
+	inSection := false
+	var b strings.Builder
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			title := strings.TrimLeft(trimmed, "# ")
+			title = strings.TrimRight(title, "# ")
+			title = strings.TrimSpace(title)
+			if title == sectionTitle {
+				inSection = true
+				continue
+			}
+			if inSection && strings.HasPrefix(trimmed, "#") {
+				break // next heading at any level
+			}
+		}
+		if inSection {
+			if trimmed == "" {
+				if b.Len() > 0 {
+					break // blank line after content
+				}
+				continue
+			}
+			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "---") {
+				continue
+			}
+			if b.Len() > 0 {
+				b.WriteString(" ")
+			}
+			b.WriteString(trimmed)
+			if b.Len() >= 200 {
+				break
+			}
+		}
+	}
+
+	result := b.String()
+	if len(result) > 200 {
+		result = result[:200]
+	}
+	return result
+}
+
+// renderSectionContent renders the content of a single section and its children.
+func renderSectionContent(content string, section *sectionTreeNode, depth int) string {
+	lines := strings.Split(content, "\n")
+	var b strings.Builder
+	inSection := false
+	sectionDepth := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			title := strings.TrimLeft(trimmed, "# ")
+			title = strings.TrimRight(title, "# ")
+			title = strings.TrimSpace(title)
+			hID := generateSectionID(title)
+
+			if hID == section.ID && !inSection {
+				inSection = true
+				sectionDepth = countPoundPrefix(trimmed)
+				b.WriteString(line + "\n")
+				continue
+			}
+			if inSection {
+				childDepth := countPoundPrefix(trimmed)
+				if childDepth <= sectionDepth {
+					break // back to parent level
+				}
+			}
+		}
+		if inSection {
+			b.WriteString(line + "\n")
+		}
+	}
+	return b.String()
+}
+
+// countPoundPrefix counts leading # characters.
+func countPoundPrefix(s string) int {
+	count := 0
+	for count < len(s) && s[count] == '#' {
+		count++
+	}
+	return count
+}
+
+// generateSectionID creates a URL-safe anchor ID from a heading title.
+func generateSectionID(title string) string {
+	id := strings.ToLower(title)
+	id = strings.NewReplacer(" ", "-", ".", "-", "_", "-", "/", "-", "\\", "-").Replace(id)
+	return id
+}
+
+// applyTokenLimit truncates content to an approximate token limit.
+func applyTokenLimit(content string, maxTokens int) string {
+	if maxTokens <= 0 {
+		return content
+	}
+	// Approximate: 1 token ~ 3 characters for mixed content
+	maxChars := maxTokens * 3
+	if len(content) <= maxChars {
+		return content
+	}
+	return content[:maxChars] + "\n\n... (content truncated to ~" + fmt.Sprint(maxTokens) + " tokens)"
 }
 
 // toolWikiList handles wiki_list: lists the Wiki directory tree.
@@ -443,12 +709,14 @@ func RegisterAllTools(srv *Server, wikiDir string, buildFn RunBuildFunc) {
 
 	srv.RegisterTool(MCPToolDefinition{
 		Name:        "wiki_read",
-		Description: "Read a Wiki page's full Markdown content by its relative path.",
+		Description: "Read a Wiki page with layered content delivery. Supports section targeting, depth control, and token budget.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]PropertySchema{
 				"path":   {Type: "string", Description: "Page path relative to Wiki root (e.g. \"architecture/data-model.md\")"},
-				"format": {Type: "string", Description: "Return format: markdown | html | text", Enum: []string{"markdown", "html", "text"}},
+				"depth":      {Type: "integer", Description: "Content depth: 0=headings only (JSON), 1=headings+abstracts (JSON), 2=full content (markdown, default)", Default: 2},
+				"section":    {Type: "string", Description: "Section ID to target (returns only that section and its children)"},
+				"max_tokens": {Type: "integer", Description: "Approximate token limit for response content"},
 			},
 			Required: []string{"path"},
 		},
