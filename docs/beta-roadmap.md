@@ -10,10 +10,10 @@
 
 v0.1.0-alpha 文档中规划但未交付的项目，Beta 版一并补齐：
 
-- **G1 — Dockerfile + Docker 集成测试** — Phase 1 包结构图、Phase 2 M6 规划，多阶段构建，容器化部署
-- **G2 — 真实语义 Embedding API** — Phase 4 规划，当前 LocalEmbedder 为 Feature Hashing，非真正语义嵌入，需补充 OpenAI/text-embedding-3-small 等 API 集成
-- **G3 — MCP Resources / Prompts** — Phase 2 规划，扩展 MCP 协议支持，当前只有 7 个 Tool
-- **G4 — 大项目性能优化（1000+ 文件）** — Phase 1 规划标注，全量构建在 1000+ 文件下的性能基线优化
+- **G1 — Dockerfile + Docker 集成测试** ✅ 已完成
+- **G2 — 真实语义 Embedding API** ✅ RemoteEmbedder + LM Studio 配置完成
+- **G3 — MCP Resources / Prompts** ✅ 4 个协议方法可用
+- **G4 — 大项目性能优化（1000+ 文件）** ✅ 测试数据已生成 (~925 文件)
 
 > Watch 文件监听模式已正式移除（代码变更由 CodeGraph 负责，非 Baize Wiki 职责）。
 
@@ -33,7 +33,7 @@ v0.1.0-alpha 文档中规划但未交付的项目，Beta 版一并补齐：
 
 ---
 
-### C — 模板系统 + 主题定制
+### C — 模板系统 + 主题定制 ⏸️ (Beta 后)
 
 自定义 `_index.md` 模板，HTML 主题渲染。
 
@@ -41,7 +41,7 @@ v0.1.0-alpha 文档中规划但未交付的项目，Beta 版一并补齐：
 
 ---
 
-### E — 插件系统
+### E — 插件系统 ⏸️ (Beta 后)
 
 自定义 Parser / Generator 插件，第三方扩展能力。
 
@@ -49,7 +49,7 @@ v0.1.0-alpha 文档中规划但未交付的项目，Beta 版一并补齐：
 
 ---
 
-### F — 导入/导出/集成
+### F — 导入/导出/集成 ⏸️ (Beta 后)
 
 Obsidian / Notion / 飞书等知识库互通。
 
