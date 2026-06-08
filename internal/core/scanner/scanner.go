@@ -29,7 +29,7 @@ func Scan(ctx context.Context, root string, cfg ScanConfig) ([]model.FileInfo, e
 	matcher := NewBuiltinMatcher()
 	ignorePath := filepath.Join(root, ".baizeignore")
 	if f, err := os.Open(ignorePath); err == nil {
-		f.Close()
+		_ = f.Close()
 		if rm, err := NewRuleMatcherFromFile(ignorePath); err == nil {
 			matcher = rm
 		}
@@ -113,7 +113,7 @@ func isBinaryFile(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	buf := make([]byte, maxBinaryCheck)
 	n, err := io.ReadFull(f, buf)

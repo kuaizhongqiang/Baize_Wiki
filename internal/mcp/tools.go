@@ -379,7 +379,7 @@ func bm25Search(ctx context.Context, wikiDir, query string, opts index.SearchOpt
 	if err != nil {
 		return []index.SearchResult{}
 	}
-	defer idx.Close()
+	defer func() { _ = idx.Close() }()
 
 	results, err := idx.Search(ctx, query, opts)
 	if err != nil {
@@ -398,7 +398,7 @@ func semanticSearch(ctx context.Context, wikiDir, query string, opts index.Searc
 	if err != nil {
 		return []index.SearchResult{}
 	}
-	defer idx.Close()
+	defer func() { _ = idx.Close() }()
 
 	vecDir := filepath.Join(wikiDir, ".baize", "vectors")
 	store := vector.NewMemoryStore(vecDir)

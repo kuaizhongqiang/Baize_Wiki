@@ -224,7 +224,7 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 				fmt.Fprintf(os.Stderr, "⚠ 索引构建失败: %v\n", err)
 			}
 		}
-		idx.Close()
+		_ = idx.Close()
 	} else {
 		result.Warnings = append(result.Warnings, "index open: "+err.Error())
 		if !quiet {
