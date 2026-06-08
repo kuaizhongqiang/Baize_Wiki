@@ -27,6 +27,7 @@ func Parse(file model.FileInfo) (*model.Page, string) {
 		ID:         model.PageID(file.Path),
 		Path:       file.Path,
 		SourceFile: file.AbsPath,
+		LLMHash:    model.ComputeContentHash(body),
 	}
 
 	ext := filepath.Ext(file.AbsPath)

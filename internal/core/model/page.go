@@ -1,10 +1,18 @@
 package model
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"hash/fnv"
 	"time"
 )
+
+// ComputeContentHash returns the SHA256 hex digest of content.
+// Used for incremental change detection.
+func ComputeContentHash(content string) string {
+	h := sha256.Sum256([]byte(content))
+	return fmt.Sprintf("%x", h)
+}
 
 // PageID generates a deterministic ID from a file path.
 func PageID(path string) string {
@@ -20,15 +28,26 @@ type Page struct {
 	Path       string      `json:"path"`
 	Title      string      `json:"title"`
 	Content    string      `json:"content"`
+	Abstract   string      `json:"abstract,omitempty"`    // Level 2: 50-100 token summary
+	Keywords   []string    `json:"keywords,omitempty"`    // Level 2: extracted keywords
+	Entities   []Entity    `json:"entities,omitempty"`    // Level 2: extracted entities (reused by Level 3)
 	Meta       Frontmatter `json:"meta,omitempty"`
 	Sections   []Section   `json:"sections,omitempty"`
 	Tags       []string    `json:"tags,omitempty"`
 	Depth      int         `json:"depth"`
 	Weight     int         `json:"weight"`
 	SourceFile string      `json:"source_file,omitempty"`
+	LLMHash    string      `json:"llm_hash,omitempty"`    // content_hash snapshot when summary was generated
 	UpdatedAt  time.Time   `json:"updated_at,omitempty"`
-	Links      []Link      `json:"links,omitempty"`     // links from this page (Phase 5)
-	Backlinks  []Link      `json:"backlinks,omitempty"` // links pointing to this page (Phase 5)
+	Links      []Link      `json:"links,omitempty"`       // links from this page (Phase 5)
+	Backlinks  []Link      `json:"backlinks,omitempty"`   // links pointing to this page (Phase 5)
+}
+
+// Entity represents a named entity extracted from a source file.
+type Entity struct {
+	Name string `json:"name"` // "Singleton<T>"
+	Type string `json:"type"` // class | interface | function | module | concept
+	Role string `json:"role"` // defined | imports | implements | uses
 }
 
 // Link represents a cross-reference between pages.
@@ -59,10 +78,11 @@ type Section struct {
 
 // FileInfo contains metadata about a scanned file.
 type FileInfo struct {
-	Path      string `json:"path"`
-	AbsPath   string `json:"abs_path"`
-	Size      int64  `json:"size"`
-	Extension string `json:"extension"`
+	Path        string `json:"path"`
+	AbsPath     string `json:"abs_path"`
+	Size        int64  `json:"size"`
+	Extension   string `json:"extension"`
+	ContentHash string `json:"content_hash,omitempty"` // SHA256 content hash for incremental detection
 }
 
 // Frontmatter represents YAML frontmatter metadata in a Markdown file.

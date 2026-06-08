@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kuaizhongqiang/baize-wiki/internal/config"
+	"github.com/kuaizhongqiang/baize-wiki/internal/core/catalog"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/generator"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/index"
 	"github.com/kuaizhongqiang/baize-wiki/internal/core/linker"
@@ -24,6 +25,7 @@ import (
 func NewBuildCmd() *cobra.Command {
 	var output string
 	var level int
+	var catalogLevel int
 	var draft, quiet, scanAll bool
 
 	cmd := &cobra.Command{
@@ -47,7 +49,7 @@ func NewBuildCmd() *cobra.Command {
 			configPath, _ := cmd.Flags().GetString("config")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 
-			result := RunBuild(context.Background(), source, output, configPath, level, draft, quiet, scanAll)
+			result := RunBuildWithOpts(context.Background(), source, output, configPath, level, draft, quiet, scanAll, catalogLevel)
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")
@@ -71,6 +73,7 @@ func NewBuildCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (overrides config)")
 	cmd.Flags().IntVarP(&level, "level", "l", 0, "Output complexity: 1=flat, 2=structured, 3=deep")
+	cmd.Flags().IntVar(&catalogLevel, "catalog-level", 0, "Cataloging depth: 0=none, 2=summary+keywords")
 	cmd.Flags().BoolVar(&draft, "draft", false, "Include pages marked as draft")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode (errors and summary only)")
 	cmd.Flags().BoolVar(&scanAll, "scan-all", false, "Scan all text files, not just .md/.mdx")
@@ -95,8 +98,13 @@ type Summary struct {
 	Directories int `json:"directories"`
 }
 
-// RunBuild executes the full build pipeline: config → scanner → parser → generator → storage.
+// RunBuild executes the full build pipeline (backward compatible wrapper).
 func RunBuild(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) BuildResult {
+	return RunBuildWithOpts(ctx, source, output, configPath, level, draft, quiet, scanAll, 0)
+}
+
+// RunBuildWithOpts executes the full build pipeline with cataloging support.
+func RunBuildWithOpts(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool, catalogLevel int) BuildResult {
 	start := time.Now()
 	result := BuildResult{}
 
@@ -192,6 +200,40 @@ func RunBuild(ctx context.Context, source, output, configPath string, level int,
 		}
 		if totalLinks > 0 {
 			fmt.Fprintf(os.Stderr, "✓ 链接解析完成: %d 个链接\n", totalLinks)
+		}
+	}
+
+	// 3.75 Catalog (Level 2: summary + keywords + entities)
+	if catalogLevel >= int(catalog.CatalogLevel2) {
+		catCfg := catalog.DefaultCatalogConfig()
+		catCfg.Level = catalog.CatalogLevel(catalogLevel)
+		summarizer := catalog.NewSummarizer(catCfg)
+
+		cataloged := 0
+		for _, page := range pages {
+			currentHash := catalog.ContentHash(page.Content)
+			if page.Abstract != "" && page.LLMHash == currentHash {
+				continue
+			}
+			page.LLMHash = currentHash
+
+			res, err := summarizer.Summarize(ctx, page, catCfg.Lang)
+			if err != nil {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("catalog %s: %v", page.Path, err))
+				continue
+			}
+
+			catalog.PostProcess(res, catCfg.MaxTokens)
+			page.Abstract = res.Abstract
+			page.Keywords = res.Keywords
+			if len(res.Entities) > 0 {
+				page.Entities = res.Entities
+			}
+			cataloged++
+		}
+
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "catalog done: %d/%d pages\n", cataloged, len(pages))
 		}
 	}
 
