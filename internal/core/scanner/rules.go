@@ -44,7 +44,7 @@ func NewRuleMatcherFromFile(path string) (*RuleMatcher, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	rm := &RuleMatcher{}
 	scanner := bufio.NewScanner(f)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 )
 
@@ -171,8 +170,3 @@ func extractID(msg []byte) json.RawMessage {
 	return json.RawMessage(`null`)
 }
 
-// logError writes an error to stderr. In MCP stdio mode, stderr is used
-// for logging so it doesn't interfere with the JSON-RPC data stream.
-func logError(format string, args ...any) {
-	log.Printf("[mcp] error: "+format, args...)
-}

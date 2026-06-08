@@ -54,10 +54,6 @@ func (lb *LevelBuilder) Flat(pages []*model.Page) *DirNode {
 	root := &DirNode{Name: "wiki", Path: ".", Depth: 0}
 
 	// Group by category
-	type categoryPages struct {
-		category string
-		pages    []*model.Page
-	}
 	groups := make(map[string][]*model.Page)
 	var categories []string
 

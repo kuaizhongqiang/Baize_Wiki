@@ -37,7 +37,7 @@ func (s *Store) WritePage(wikiDir, pagePath, content string) error {
 
 	if err := os.Rename(tmpPath, fullPath); err != nil {
 		// Clean up temp file on error
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename %s to %s: %w", tmpPath, fullPath, err)
 	}
 
@@ -64,7 +64,7 @@ func (s *Store) WriteMeta(wikiDir string, wiki *model.Wiki) error {
 	}
 
 	if err := os.Rename(tmpPath, metaPath); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename meta: %w", err)
 	}
 

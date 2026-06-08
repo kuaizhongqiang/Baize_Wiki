@@ -93,7 +93,6 @@ func (e *LocalEmbedder) Embed(_ context.Context, text string) ([]float32, error)
 // CJK characters (Chinese, Japanese, Korean) are split into individual runes.
 // Mixed content is handled by processing each rune according to its category.
 func tokenize(text string) []string {
-	runes := []rune(text)
 	var tokens []string
 	var buf []rune
 	flush := func() {
@@ -103,7 +102,7 @@ func tokenize(text string) []string {
 		}
 	}
 
-	for _, r := range runes {
+	for _, r := range text {
 		if isCJK(r) {
 			// CJK: flush any pending ASCII buffer, then emit this rune as its own token
 			flush()

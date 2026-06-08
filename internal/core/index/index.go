@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
@@ -57,7 +56,7 @@ func NewIndex(path string) (*Index, error) {
 	// Failed to open existing index — create a new one.
 	// Remove any leftover directory so bleve.New can create from scratch,
 	// then fall back to temp dir if the original path is unusable.
-	os.RemoveAll(path)
+	_ = os.RemoveAll(path)
 	m := bleve.NewIndexMapping()
 	idx, err = bleve.New(path, m)
 	if err != nil {
@@ -193,11 +192,3 @@ func fieldStrs(fields map[string]interface{}, name string) []string {
 	return nil
 }
 
-// snippet returns the first N characters of a string.
-func snippet(content string, maxLen int) string {
-	trimmed := strings.TrimSpace(content)
-	if len(trimmed) <= maxLen {
-		return trimmed
-	}
-	return trimmed[:maxLen]
-}

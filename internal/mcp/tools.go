@@ -249,7 +249,7 @@ func toolWikiAdd(wikiDir string) ToolHandler {
 			return nil, &ErrorObj{Code: ErrInternal, Message: err.Error()}
 		}
 		if err := os.Rename(tmpPath, safePath); err != nil {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 			return nil, &ErrorObj{Code: ErrInternal, Message: err.Error()}
 		}
 
@@ -274,7 +274,7 @@ func toolWikiStats(wikiDir string) ToolHandler {
 		dirCount := 0
 		tags := make(map[string]bool)
 
-		filepath.Walk(wikiDir, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(wikiDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
@@ -402,7 +402,7 @@ func semanticSearch(ctx context.Context, wikiDir, query string, opts index.Searc
 
 	vecDir := filepath.Join(wikiDir, ".baize", "vectors")
 	store := vector.NewMemoryStore(vecDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	embedder := vector.NewLocalEmbedder(256)
 	hybrid := vector.NewHybridSearch(idx, store, embedder, alpha)

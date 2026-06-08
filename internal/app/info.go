@@ -180,7 +180,7 @@ func printStats(wikiDir string, metaData []byte) {
 	dirCount := 0
 	totalLinks := 0
 
-	filepath.Walk(wikiDir, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(wikiDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}

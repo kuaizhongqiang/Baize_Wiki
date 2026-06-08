@@ -142,7 +142,7 @@ func (t *TCPServerTransport) Write(data []byte) error {
 // Close closes both the listener and the connection.
 func (t *TCPServerTransport) Close() error {
 	if t.transport != nil {
-		t.transport.Close()
+		_ = t.transport.Close()
 	}
 	return t.listener.Close()
 }

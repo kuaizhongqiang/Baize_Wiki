@@ -9,8 +9,6 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-const sectionContentMaxLen = 200
-
 // parseMarkdown parses markdown content into a tree of sections.
 // Uses goldmark AST to extract heading-based structure,
 // then builds a tree via recursive partitioning.
@@ -107,31 +105,3 @@ func generateSectionID(title string) string {
 	return id
 }
 
-// collectSectionContent gathers text content under a heading.
-// Uses a simple line-based approach to extract section content summary.
-func collectSectionContent(content string, startLine int) string {
-	lines := strings.Split(content, "\n")
-	var b strings.Builder
-	for i := startLine; i < len(lines); i++ {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "#") {
-			break
-		}
-		if b.Len() > 0 {
-			b.WriteString(" ")
-		}
-		b.WriteString(line)
-		if b.Len() >= sectionContentMaxLen {
-			break
-		}
-	}
-
-	result := b.String()
-	if len(result) > sectionContentMaxLen {
-		result = result[:sectionContentMaxLen]
-	}
-	return result
-}

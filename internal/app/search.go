@@ -123,12 +123,12 @@ func RunSemanticSearch(ctx context.Context, wikiDir, queryStr string, opts index
 		result.Results = []index.SearchResult{}
 		return result
 	}
-	defer idx.Close()
+	defer func() { _ = idx.Close() }()
 
 	// 2. Open vector store
 	vecDir := filepath.Join(wikiDir, ".baize", "vectors")
 	store := vector.NewMemoryStore(vecDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// 3. Create embedder
 	embedder := vector.NewLocalEmbedder(256)

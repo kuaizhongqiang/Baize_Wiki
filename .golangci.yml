@@ -14,3 +14,9 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+
+  exclusions:
+    rules:
+      - path: ".*_test\\.go"
+        linters:
+          - errcheck

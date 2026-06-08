@@ -61,7 +61,7 @@ func NewMemoryStore(dir string) *MemoryStore {
 		dir:      dir,
 	}
 	if dir != "" {
-		s.load()
+		_ = s.load()
 	}
 	return s
 }
@@ -170,7 +170,7 @@ func (s *MemoryStore) save() error {
 	if err != nil {
 		return fmt.Errorf("create vectors file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	enc := gob.NewEncoder(f)
 	stored := make([]storedVector, 0, len(s.vectors))
@@ -195,7 +195,7 @@ func (s *MemoryStore) load() error {
 		}
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var stored []storedVector
 	dec := gob.NewDecoder(f)
