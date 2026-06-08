@@ -1,0 +1,17 @@
+# golangci-lint configuration
+# See https://golangci-lint.run/usage/configuration/ for reference.
+
+run:
+  # Use Go 1.24 compatibility mode so golangci-lint (built with Go 1.24)
+  # can analyze this project without version mismatch errors.
+  go: "1.24"
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
