@@ -142,7 +142,6 @@ func CategorizePages(pages []*model.Page, lang string) map[string]string {
 
 	// Group by first path component as default heuristic
 	groups := make(map[string][]*model.Page)
-	var groupNames []string
 	for _, p := range pages {
 		cat := p.Meta.Category
 		if cat == "" {
@@ -153,9 +152,6 @@ func CategorizePages(pages []*model.Page, lang string) map[string]string {
 			} else {
 				cat = "other"
 			}
-		}
-		if _, ok := groups[cat]; !ok {
-			groupNames = append(groupNames, cat)
 		}
 		groups[cat] = append(groups[cat], p)
 		result[p.Path] = cat

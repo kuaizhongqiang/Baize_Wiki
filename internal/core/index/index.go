@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
@@ -185,40 +184,6 @@ if opts.WithContent {
 return results, nil
 }
 
-// findSectionForHit finds the markdown heading under which a highlighted snippet occurs.
-func findSectionForHit(content, snippet string) string {
-	if content == "" || snippet == "" {
-		return ""
-	}
-	snipPos := strings.Index(content, snippet)
-	if snipPos < 0 {
-		words := strings.Fields(snippet)
-		if len(words) > 3 {
-			snipPos = strings.Index(content, words[0]+" "+words[1]+" "+words[2])
-		}
-		if snipPos < 0 {
-			return ""
-		}
-	}
-
-	// Walk backwards from the snippet position looking for the nearest heading
-	before := content[:snipPos]
-	lines := strings.Split(before, "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "" || trimmed[0] != '#' {
-			continue
-		}
-		level := 0
-		for level < len(trimmed) && trimmed[level] == '#' {
-			level++
-		}
-		if level <= 6 && level < len(trimmed) && trimmed[level] == ' ' {
-			return strings.TrimSpace(trimmed[level+1:])
-		}
-	}
-	return ""
-}
 
 // Close closes the index and releases resources.
 func (idx *Index) Close() error {

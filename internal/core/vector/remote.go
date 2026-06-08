@@ -78,7 +78,7 @@ func (e *RemoteEmbedder) batchEmbed(ctx context.Context, texts []string) ([]floa
 	if err != nil {
 		return nil, fmt.Errorf("http call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -77,7 +77,7 @@ func (r *RemoteSummarizer) Summarize(ctx context.Context, page *model.Page, lang
 	if err != nil {
 		return nil, fmt.Errorf("http call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
