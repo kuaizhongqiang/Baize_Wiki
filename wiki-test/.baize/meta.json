@@ -5,6 +5,7 @@
   "output_path": "F:\\Project\\Baize_Wiki\\wiki-test",
   "config": {
     "name": "Test Wiki",
+    "profile": "local",
     "scan": {
       "paths": [
         "./"
@@ -14,7 +15,7 @@
     },
     "output": {
       "dir": "./wiki-test",
-      "level": 3,
+      "level": 2,
       "clean": false
     },
     "organize": {
@@ -25,13 +26,21 @@
       "scan_all": false,
       "vector": false
     },
+    "catalog": {
+      "level": 0,
+      "backend": "local",
+      "endpoint": "http://localhost:1234/v1",
+      "model": "qwen/qwen3.5-9b"
+    },
     "vector": {
       "mode": "local",
-      "hybrid_weight": 0.5
+      "hybrid_weight": 0.5,
+      "endpoint": "http://localhost:1234/v1",
+      "model": "text-embedding-baai-bge-m3-568m:2"
     }
   },
   "page_count": 1000,
-  "created_at": "2026-06-08T12:40:28.251009+08:00",
-  "updated_at": "2026-06-08T12:40:28.251009+08:00",
+  "created_at": "2026-06-08T13:19:25.9857845+08:00",
+  "updated_at": "2026-06-08T13:19:25.9857845+08:00",
   "version": 1
 }

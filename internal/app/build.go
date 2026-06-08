@@ -27,6 +27,7 @@ func NewBuildCmd() *cobra.Command {
 	var output string
 	var level int
 	var catalogLevel int
+	var profile string
 	var draft, quiet, scanAll, incremental bool
 
 	cmd := &cobra.Command{
@@ -50,7 +51,7 @@ func NewBuildCmd() *cobra.Command {
 			configPath, _ := cmd.Flags().GetString("config")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 
-			result := RunBuildWithOpts(context.Background(), source, output, configPath, level, draft, quiet, scanAll, catalogLevel, incremental)
+			result := RunBuildWithOpts(context.Background(), source, output, configPath, level, draft, quiet, scanAll, catalogLevel, incremental, profile)
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")
@@ -75,6 +76,7 @@ func NewBuildCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (overrides config)")
 	cmd.Flags().IntVarP(&level, "level", "l", 0, "Output complexity: 1=flat, 2=structured, 3=deep")
 	cmd.Flags().IntVar(&catalogLevel, "catalog-level", 0, "Cataloging depth: 0=none, 2=summary+keywords")
+	cmd.Flags().StringVar(&profile, "profile", "", "Catalog profile: speed | balanced | local (overrides config)")
 	cmd.Flags().BoolVar(&draft, "draft", false, "Include pages marked as draft")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode (errors and summary only)")
 	cmd.Flags().BoolVar(&scanAll, "scan-all", false, "Scan all text files, not just .md/.mdx")
@@ -102,11 +104,11 @@ type Summary struct {
 
 // RunBuild executes the full build pipeline (backward compatible wrapper).
 func RunBuild(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool) BuildResult {
-	return RunBuildWithOpts(ctx, source, output, configPath, level, draft, quiet, scanAll, 0, false)
+	return RunBuildWithOpts(ctx, source, output, configPath, level, draft, quiet, scanAll, 0, false, "")
 }
 
 // RunBuildWithOpts executes the full build pipeline with cataloging and incremental support.
-func RunBuildWithOpts(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool, catalogLevel int, incremental bool) BuildResult {
+func RunBuildWithOpts(ctx context.Context, source, output, configPath string, level int, draft, quiet, scanAll bool, catalogLevel int, incremental bool, profile string) BuildResult {
 	start := time.Now()
 	result := BuildResult{}
 
@@ -117,6 +119,10 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 		return result
 	}
 	cfg = cfg.Merge(level, output, scanAll)
+	if profile != "" {
+		cfg.Profile = profile
+	}
+	cfg.ApplyProfile()
 
 	// Determine source path
 	sourceDir := source
@@ -207,9 +213,8 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 
 	// 3.75 Catalog (Level 2: summary + keywords + entities)
 	if catalogLevel >= int(catalog.CatalogLevel2) {
-		catCfg := catalog.DefaultCatalogConfig()
-		catCfg.Level = catalog.CatalogLevel(catalogLevel)
-		summarizer := catalog.NewSummarizer(catCfg)
+		catOpts := catalog.FromModelConfig(cfg.Catalog, catalogLevel)
+		summarizer := catalog.NewSummarizer(catOpts)
 
 		cataloged := 0
 		skipped := 0
@@ -221,13 +226,13 @@ func RunBuildWithOpts(ctx context.Context, source, output, configPath string, le
 			}
 			page.LLMHash = currentHash
 
-			res, err := summarizer.Summarize(ctx, page, catCfg.Lang)
+			res, err := summarizer.Summarize(ctx, page, catOpts.Lang)
 			if err != nil {
 				result.Warnings = append(result.Warnings, fmt.Sprintf("catalog %s: %v", page.Path, err))
 				continue
 			}
 
-			catalog.PostProcess(res, catCfg.MaxTokens)
+			catalog.PostProcess(res, catOpts.MaxTokens)
 			page.Abstract = res.Abstract
 			page.Keywords = res.Keywords
 			if len(res.Entities) > 0 {

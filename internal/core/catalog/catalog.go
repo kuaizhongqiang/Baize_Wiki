@@ -42,13 +42,13 @@ type CatalogResult struct {
 
 // CatalogConfig configures the cataloging pipeline.
 type CatalogConfig struct {
-	Level       CatalogLevel // cataloging depth
-	Backend     string       // "local" or "remote"
-	Lang        string       // output language (default "zh")
-	MaxTokens   int          // max tokens for summary (default 100)
-	APIEndpoint string       // remote API endpoint
-	APIModel    string       // remote model name
-	APIKey      string       // remote API key
+	Level     CatalogLevel // cataloging depth
+	Backend   string       // "local" or "remote"
+	Lang      string       // output language (default "zh")
+	MaxTokens int          // max tokens for summary (default 100)
+	Endpoint  string       // remote API endpoint
+	Model     string       // remote model name
+	APIKey    string       // remote API key
 }
 
 // DefaultCatalogConfig returns sensible defaults.
@@ -66,8 +66,8 @@ func NewSummarizer(cfg CatalogConfig) Summarizer {
 	switch cfg.Backend {
 	case "remote":
 		return &RemoteSummarizer{
-			endpoint: cfg.APIEndpoint,
-			model:    cfg.APIModel,
+			endpoint: cfg.Endpoint,
+			model:    cfg.Model,
 			apiKey:   cfg.APIKey,
 			lang:     cfg.Lang,
 		}
@@ -76,6 +76,19 @@ func NewSummarizer(cfg CatalogConfig) Summarizer {
 			lang:      cfg.Lang,
 			maxTokens: cfg.MaxTokens,
 		}
+	}
+}
+
+// FromModelConfig converts a model.CatalogConfig to a catalog.CatalogConfig.
+func FromModelConfig(cfg model.CatalogConfig, level int) CatalogConfig {
+	return CatalogConfig{
+		Level:     CatalogLevel(level),
+		Backend:   cfg.Backend,
+		Lang:      "zh",
+		MaxTokens: 100,
+		Endpoint:  cfg.Endpoint,
+		Model:     cfg.Model,
+		APIKey:    cfg.APIKey,
 	}
 }
 
