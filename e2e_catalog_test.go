@@ -102,3 +102,48 @@ func TestE2ECatalogWithScanAll(t *testing.T) {
 	assert.True(t, result.Success)
 	assert.Greater(t, result.Summary.Pages, 0)
 }
+
+
+
+func TestE2ECatalogLevel3Concept(t *testing.T) {
+	srcDir := t.TempDir()
+	outDir := t.TempDir()
+
+	content1 := []byte("# Core Module")
+	content2 := []byte("# UI Module")
+	content3 := []byte("# Data Module")
+	os.MkdirAll(filepath.Join(srcDir, "src"), 0755)
+	os.WriteFile(filepath.Join(srcDir, "src", "core.md"), content1, 0644)
+	os.WriteFile(filepath.Join(srcDir, "src", "ui.md"), content2, 0644)
+	os.WriteFile(filepath.Join(srcDir, "src", "data.md"), content3, 0644)
+
+	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 3, false, "", "")
+	assert.True(t, result.Success)
+	graphPath := filepath.Join(outDir, ".baize", "graph.json")
+	assert.FileExists(t, graphPath)
+}
+
+func TestE2ECatalogLevel3GraphLayers(t *testing.T) {
+	srcDir := t.TempDir()
+	outDir := t.TempDir()
+
+	os.MkdirAll(filepath.Join(srcDir, "model"), 0755)
+	os.MkdirAll(filepath.Join(srcDir, "app"), 0755)
+	os.WriteFile(filepath.Join(srcDir, "model", "page.md"), []byte("# Page Struct"), 0644)
+	os.WriteFile(filepath.Join(srcDir, "app", "main.md"), []byte("# Main App"), 0644)
+
+	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 3, false, "", "")
+	assert.True(t, result.Success)
+	assert.FileExists(t, filepath.Join(outDir, ".baize", "graph.json"))
+}
+
+func TestE2ECatalogLevel3WithLocal(t *testing.T) {
+	srcDir := t.TempDir()
+	outDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(srcDir, "page.md"), []byte("# Test Page"), 0644)
+
+	result := app.RunBuildWithOpts(context.Background(), srcDir, outDir, "", 2, false, false, false, 3, false, "", "")
+	assert.True(t, result.Success)
+	assert.Greater(t, result.Summary.Pages, 0)
+}
